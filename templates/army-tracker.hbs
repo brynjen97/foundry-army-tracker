@@ -198,16 +198,23 @@
     {{else}}
     <div class="at-structure">
       <p class="at-hint">{{localize "ARMY.StructureHint"}}</p>
-      {{#if isGM}}
       <div class="at-structure-tools">
+        <button type="button" data-action="expandAll" data-tooltip="{{localize "ARMY.ExpandAllTooltip"}}">
+          <i class="fa-solid fa-angles-down"></i> {{localize "ARMY.ExpandAll"}}
+        </button>
+        <button type="button" data-action="collapseAll" data-tooltip="{{localize "ARMY.CollapseAllTooltip"}}">
+          <i class="fa-solid fa-angles-up"></i> {{localize "ARMY.CollapseAll"}}
+        </button>
+        {{#if isGM}}
+        <span class="at-tools-spacer"></span>
         <button type="button" data-action="generateArmy">
           <i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "ARMY.Generate.button"}}
         </button>
         <button type="button" data-action="openConfig">
           <i class="fa-solid fa-sliders"></i> {{localize "ARMY.Config.open"}}
         </button>
+        {{/if}}
       </div>
-      {{/if}}
       {{#with army}}
         {{> "modules/foundry-army-tracker/templates/unit.hbs"}}
       {{/with}}

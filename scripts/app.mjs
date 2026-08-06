@@ -3,6 +3,7 @@ import {
   advanceDay,
   applyOps,
   buildStructure,
+  collectUnitIds,
   computePay,
   fmt,
   getArmyData,
@@ -32,7 +33,36 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   activeTab = "roster";
   #expandedRows = new Set();
+
+  // Collapse state is tracked as explicit overrides in either direction, so
+  // that anything the user has not touched follows the default below: only the
+  // army itself opens, which keeps a freshly generated 700-strong army to one
+  // readable screen instead of a wall of units.
+  #expandedUnits = new Set();
   #collapsedUnits = new Set();
+
+  #isCollapsed(id, depth) {
+    if (this.#expandedUnits.has(id)) return false;
+    if (this.#collapsedUnits.has(id)) return true;
+    return depth > 0;
+  }
+
+  #setCollapsed(id, collapsed) {
+    if (!id) return;
+    if (collapsed) {
+      this.#collapsedUnits.add(id);
+      this.#expandedUnits.delete(id);
+    } else {
+      this.#expandedUnits.add(id);
+      this.#collapsedUnits.delete(id);
+    }
+  }
+
+  /** Forget every override so the default (army open, rest closed) applies again. */
+  #resetCollapse() {
+    this.#expandedUnits.clear();
+    this.#collapsedUnits.clear();
+  }
 
   static DEFAULT_OPTIONS = {
     id: "army-tracker",
@@ -59,6 +89,8 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       addUnit: ArmyTrackerApp._onAddUnit,
       removeUnit: ArmyTrackerApp._onRemoveUnit,
       toggleUnit: ArmyTrackerApp._onToggleUnit,
+      expandAll: ArmyTrackerApp._onExpandAll,
+      collapseAll: ArmyTrackerApp._onCollapseAll,
       addOfficer: ArmyTrackerApp._onAddOfficer,
       removeOfficer: ArmyTrackerApp._onRemoveOfficer,
       generateArmy: ArmyTrackerApp._onGenerateArmy,
@@ -192,7 +224,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       namePlaceholder: game.i18n.format("ARMY.Unit.namePh", {
         type: game.i18n.localize(`ARMY.Unit.${level.type}`)
       }),
-      collapsed: this.#collapsedUnits.has(unit.id),
+      collapsed: this.#isCollapsed(unit.id, depth),
       isSquad: !level.childKey,
       strength,
       strengthLabel: game.i18n.format("ARMY.Unit.strength", { count: strength })
@@ -209,6 +241,21 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         index: i
       }));
       node.officerTotal = officerCount(unit, depth);
+
+      // The first officer commands the unit, and is shown on its header so a
+      // collapsed army still reads as "1st Host — Helm Aldric". A generated
+      // army titles every officer but leaves them unnamed, so that case is
+      // called out rather than rendered as a title trailing into nothing.
+      const primary = officers[0];
+      if (primary) {
+        const title = (primary.title ?? "").trim();
+        const name = (primary.name ?? "").trim();
+        node.primaryOfficerVacant = !name;
+        if (title && name) node.primaryOfficer = `${title} ${name}`;
+        else if (name) node.primaryOfficer = name;
+        else if (title) node.primaryOfficer = game.i18n.format("ARMY.OfficerVacant", { title });
+        else node.primaryOfficer = null;
+      }
     }
 
     if (level.childKey) {
@@ -285,9 +332,23 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static _onToggleUnit(event, target) {
-    const id = target.dataset.id;
-    if (this.#collapsedUnits.has(id)) this.#collapsedUnits.delete(id);
-    else this.#collapsedUnits.add(id);
+    // The current state comes from the rendered node, since the default
+    // depends on depth rather than on membership of either set.
+    this.#setCollapsed(target.dataset.id, target.dataset.collapsed !== "true");
+    this.render();
+  }
+
+  static _onExpandAll() {
+    const ids = collectUnitIds(getArmyData().structure.army, 0);
+    this.#collapsedUnits.clear();
+    for (const id of ids) this.#expandedUnits.add(id);
+    this.render();
+  }
+
+  static _onCollapseAll() {
+    const ids = collectUnitIds(getArmyData().structure.army, 0);
+    this.#expandedUnits.clear();
+    for (const id of ids) this.#collapsedUnits.add(id);
     this.render();
   }
 
@@ -581,8 +642,12 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     };
     const make = makers[unitType];
     if (!make || !arrayPath) return;
-    if (parentId) this.#collapsedUnits.delete(parentId);
-    await applyOps([{ action: "push", path: arrayPath, value: make() }]);
+    const unit = make();
+    // Open the parent and the new unit, so what you just added is visible
+    // even though units are collapsed by default.
+    this.#setCollapsed(parentId, false);
+    this.#setCollapsed(unit.id, false);
+    await applyOps([{ action: "push", path: arrayPath, value: unit }]);
   }
 
   static async _onRemoveUnit(event, target) {
@@ -608,7 +673,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static async _onAddOfficer(event, target) {
     const { arrayPath, title, parentId } = target.dataset;
     if (!arrayPath) return;
-    if (parentId) this.#collapsedUnits.delete(parentId);
+    this.#setCollapsed(parentId, false);
     await applyOps([{
       action: "push",
       path: arrayPath,
@@ -662,6 +727,8 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const built = buildStructure();
     built.army.name = existing.name || built.army.name;
     built.army.notes = existing.notes ?? "";
+    // Drop any stale overrides so the generated army arrives collapsed.
+    this.#resetCollapse();
     await applyOps([{ action: "set", path: "structure.army", value: built.army }]);
     ui.notifications.info(game.i18n.format("ARMY.Generate.done", { count: total }));
   }

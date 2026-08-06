@@ -1,10 +1,15 @@
 <div class="at-unit at-depth-{{depth}} {{#if collapsed}}collapsed{{/if}} {{#if isRoot}}at-root{{/if}}">
   <div class="at-unit-header">
-    <button type="button" class="at-icon-btn" data-action="toggleUnit" data-id="{{id}}">
+    <button type="button" class="at-icon-btn" data-action="toggleUnit" data-id="{{id}}"
+            data-collapsed="{{collapsed}}">
       <i class="fa-solid fa-chevron-{{#if collapsed}}right{{else}}down{{/if}}"></i>
     </button>
     <span class="at-unit-type">{{typeLabel}}</span>
     <input type="text" class="at-unit-name" value="{{name}}" placeholder="{{namePlaceholder}}" data-path="{{path}}.name">
+    {{#if primaryOfficer}}
+    <span class="at-unit-officer {{#if primaryOfficerVacant}}at-vacant{{/if}}"
+          data-tooltip="{{localize "ARMY.PrimaryOfficerTooltip"}}">&mdash; {{primaryOfficer}}</span>
+    {{/if}}
     <span class="at-unit-strength" data-tooltip="{{localize "ARMY.Unit.strengthTooltip"}}">
       <i class="fa-solid fa-users"></i> {{strength}}
     </span>
