@@ -86,14 +86,25 @@ Then restart Foundry, and enable **Army Tracker** under *Game Settings → Manag
 
 ### Option 2 — Manifest URL (needs a release first)
 
-Push a version tag and the included GitHub Action builds the release assets:
+A release has to exist before this URL resolves. The included GitHub Action builds one, and you can run it **entirely from the browser**:
+
+> **Actions** tab → **Release Module** → **Run workflow** → enter `0.1.0` → **Run workflow**
+
+No tag needed beforehand — the workflow creates the tag itself at the commit it runs against.
+
+If you prefer the command line, pushing a version tag triggers the same workflow:
 
 ```bash
 git tag v0.1.0
-git push origin v0.1.0
+git push origin v0.1.0     # a plain `git push` does NOT send tags
 ```
 
-Once the action finishes, install in Foundry via *Add-on Modules → Install Module → Manifest URL*:
+Two things that quietly produce no release:
+
+- `git tag v0.1.0` on its own only creates the tag **locally**. It has to be pushed explicitly, as above.
+- In the Releases UI, **Save draft** does not create the tag. Only **Publish release** does.
+
+Once the run finishes green, install in Foundry via *Add-on Modules → Install Module → Manifest URL*:
 
 ```
 https://github.com/Dingus17/foundry-army-tracker/releases/latest/download/module.json
