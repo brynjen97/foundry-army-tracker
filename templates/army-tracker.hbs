@@ -1,0 +1,186 @@
+<div class="at-app">
+  <header class="at-topbar">
+    <nav class="at-tabs">
+      <button type="button" class="at-tab {{#if tabs.roster}}active{{/if}}" data-action="switchTab" data-tab="roster">
+        <i class="fa-solid fa-users"></i> {{localize "ARMY.Tabs.roster"}}
+      </button>
+      <button type="button" class="at-tab {{#if tabs.structure}}active{{/if}}" data-action="switchTab" data-tab="structure">
+        <i class="fa-solid fa-sitemap"></i> {{localize "ARMY.Tabs.structure"}}
+      </button>
+    </nav>
+    <div class="at-day" data-tooltip="{{localize "ARMY.DayTooltip"}}">
+      <i class="fa-solid fa-calendar-day"></i> {{localize "ARMY.Day"}} {{day}}
+    </div>
+    {{#if isGM}}
+    <button type="button" class="at-advance" data-action="advanceDay">
+      <i class="fa-solid fa-forward-step"></i> {{localize "ARMY.AdvanceDay"}}
+    </button>
+    {{/if}}
+  </header>
+
+  <section class="at-body">
+    {{#if tabs.roster}}
+    <div class="at-roster">
+      {{#if roster.length}}
+      <table class="at-table">
+        <thead>
+          <tr>
+            <th class="at-col-expand"></th>
+            <th class="at-col-name">{{localize "ARMY.Col.name"}}</th>
+            <th class="at-col-rank">{{localize "ARMY.Col.rank"}}</th>
+            <th class="at-col-num">{{localize "ARMY.Col.wage"}} <span class="at-unit-hint">({{currency}}/{{localize "ARMY.DayShort"}})</span></th>
+            <th class="at-col-num">{{localize "ARMY.Col.net"}}</th>
+            <th class="at-col-num">{{localize "ARMY.Col.debt"}}</th>
+            <th class="at-col-num">{{localize "ARMY.Col.vault"}}</th>
+            {{#if isGM}}<th class="at-col-actions"></th>{{/if}}
+          </tr>
+        </thead>
+        <tbody>
+          {{#each roster}}
+          <tr class="at-row {{#if expanded}}expanded{{/if}}">
+            <td class="at-col-expand">
+              <button type="button" class="at-icon-btn" data-action="toggleRow" data-id="{{id}}"
+                      data-tooltip="{{localize "ARMY.ToggleDetails"}}">
+                <i class="fa-solid fa-chevron-{{#if expanded}}down{{else}}right{{/if}}"></i>
+              </button>
+            </td>
+            <td class="at-name">
+              {{#if img}}<img class="at-portrait" src="{{img}}" alt="">{{/if}}
+              <span>{{name}}</span>
+            </td>
+            <td>
+              <select data-path="{{path}}.rank" data-dtype="String" {{#unless @root.isGM}}disabled{{/unless}}>
+                {{selectOptions @root.rankOptions selected=rank}}
+              </select>
+            </td>
+            <td class="at-num">
+              <input type="number" step="any" min="0" value="{{wageOverride}}" placeholder="{{defaultWage}}"
+                     data-path="{{path}}.wageOverride" data-dtype="Number" data-nullable
+                     data-tooltip="{{localize "ARMY.WageOverrideTooltip"}}"
+                     {{#unless @root.isGM}}disabled{{/unless}}>
+            </td>
+            <td class="at-num at-net {{netClass}}">{{pay.netF}}</td>
+            <td class="at-num">
+              <input type="number" step="any" min="0" value="{{debt}}"
+                     data-path="{{path}}.debt" data-dtype="Number"
+                     {{#unless @root.isGM}}disabled{{/unless}}>
+            </td>
+            <td class="at-num">
+              <input type="number" step="any" min="0" value="{{vault}}"
+                     data-path="{{path}}.vault" data-dtype="Number"
+                     {{#unless @root.isGM}}disabled{{/unless}}>
+            </td>
+            {{#if @root.isGM}}
+            <td class="at-col-actions">
+              <button type="button" class="at-icon-btn danger" data-action="removeMember"
+                      data-index="{{index}}" data-name="{{name}}"
+                      data-tooltip="{{localize "ARMY.RemoveMember"}}">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+            {{/if}}
+          </tr>
+          {{#if expanded}}
+          <tr class="at-detail-row">
+            <td colspan="{{@root.colspan}}">
+              <div class="at-detail">
+                <div class="at-panel">
+                  <h4><i class="fa-solid fa-utensils"></i> {{localize "ARMY.Deductions"}}</h4>
+                  {{#if deductions.length}}
+                  <ul class="at-deductions">
+                    {{#each deductions}}
+                    <li>
+                      <input type="text" value="{{label}}" placeholder="{{localize "ARMY.DeductionPh"}}"
+                             data-path="{{path}}.label" {{#unless @root.isGM}}disabled{{/unless}}>
+                      <input class="at-amount" type="number" step="any" min="0" value="{{amount}}"
+                             data-path="{{path}}.amount" data-dtype="Number"
+                             {{#unless @root.isGM}}disabled{{/unless}}>
+                      {{#if @root.isGM}}
+                      <button type="button" class="at-icon-btn danger" data-action="removeDeduction"
+                              data-array-path="{{arrayPath}}" data-index="{{index}}"
+                              data-tooltip="{{localize "ARMY.RemoveDeduction"}}">
+                        <i class="fa-solid fa-xmark"></i>
+                      </button>
+                      {{/if}}
+                    </li>
+                    {{/each}}
+                  </ul>
+                  {{else}}
+                  <p class="at-empty">{{localize "ARMY.NoDeductions"}}</p>
+                  {{/if}}
+                  {{#if @root.isGM}}
+                  <button type="button" class="at-add-small" data-action="addDeduction" data-array-path="{{path}}.deductions">
+                    <i class="fa-solid fa-plus"></i> {{localize "ARMY.AddDeduction"}}
+                  </button>
+                  {{/if}}
+                  <div class="at-line at-total">
+                    <span>{{localize "ARMY.TotalDeductions"}}</span>
+                    <span>&minus;{{pay.dedF}} {{@root.currency}}</span>
+                  </div>
+                </div>
+
+                <div class="at-panel">
+                  <h4><i class="fa-solid fa-coins"></i> {{localize "ARMY.Salary"}}</h4>
+                  <div class="at-line"><span>{{localize "ARMY.BaseDaily"}}</span><span>{{pay.baseF}} {{@root.currency}}</span></div>
+                  <div class="at-line"><span>{{localize "ARMY.DeductionsDaily"}}</span><span>&minus;{{pay.dedF}} {{@root.currency}}</span></div>
+                  <div class="at-line at-total"><span>{{localize "ARMY.NetDaily"}}</span><span class="{{netClass}}">{{pay.netF}} {{@root.currency}}</span></div>
+                  <div class="at-line"><span>{{localize "ARMY.Weekly" days=@root.daysPerWeek}}</span><span>{{pay.weeklyF}} {{@root.currency}}</span></div>
+                  <div class="at-line"><span>{{localize "ARMY.Monthly" days=@root.daysPerMonth}}</span><span>{{pay.monthlyF}} {{@root.currency}}</span></div>
+                  <div class="at-line"><span>{{localize "ARMY.Yearly" days=@root.daysPerYear}}</span><span>{{pay.yearlyF}} {{@root.currency}}</span></div>
+                </div>
+
+                <div class="at-panel">
+                  <h4><i class="fa-solid fa-scale-balanced"></i> {{localize "ARMY.Finances"}}</h4>
+                  <div class="at-line"><span>{{localize "ARMY.Col.debt"}}</span><span class="{{#if debt}}at-neg{{/if}}">{{debtF}} {{@root.currency}}</span></div>
+                  <div class="at-line"><span>{{localize "ARMY.MaxLoan" months=@root.loanMonths}}</span><span>{{pay.maxLoanF}} {{@root.currency}}</span></div>
+                  <div class="at-line"><span>{{localize "ARMY.Col.vault"}}</span><span>{{vaultF}} {{@root.currency}}</span></div>
+                  {{#if @root.isGM}}
+                  <div class="at-btn-row">
+                    <button type="button" data-action="grantLoan" data-index="{{index}}" data-name="{{name}}">
+                      <i class="fa-solid fa-hand-holding-dollar"></i> {{localize "ARMY.GrantLoan"}}
+                    </button>
+                    <button type="button" data-action="repayDebt" data-index="{{index}}"
+                            data-tooltip="{{localize "ARMY.RepayDebtTooltip"}}">
+                      <i class="fa-solid fa-rotate-left"></i> {{localize "ARMY.RepayDebt"}}
+                    </button>
+                  </div>
+                  {{/if}}
+                </div>
+              </div>
+            </td>
+          </tr>
+          {{/if}}
+          {{/each}}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" class="at-totals-label">{{localize "ARMY.Totals"}}</td>
+            <td class="at-num">{{totals.netF}}</td>
+            <td class="at-num">{{totals.debtF}}</td>
+            <td class="at-num">{{totals.vaultF}}</td>
+            {{#if isGM}}<td></td>{{/if}}
+          </tr>
+        </tfoot>
+      </table>
+      {{else}}
+      <p class="at-hint">{{localize "ARMY.RosterEmpty"}}</p>
+      {{/if}}
+      {{#if isGM}}
+      <button type="button" class="at-add" data-action="addMember">
+        <i class="fa-solid fa-user-plus"></i> {{localize "ARMY.AddMember"}}
+      </button>
+      {{/if}}
+    </div>
+    {{else}}
+    <div class="at-structure">
+      <p class="at-hint">{{localize "ARMY.StructureHint"}}</p>
+      {{#each hosts}}
+        {{> "modules/foundry-army-tracker/templates/unit.hbs"}}
+      {{/each}}
+      <button type="button" class="at-add" data-action="addUnit" data-array-path="structure.hosts" data-unit-type="host">
+        <i class="fa-solid fa-plus"></i> {{localize "ARMY.Unit.add.host"}}
+      </button>
+    </div>
+    {{/if}}
+  </section>
+</div>

@@ -1,0 +1,152 @@
+{
+  "ARMY": {
+    "Title": "Army Tracker",
+    "OpenButton": "Army Tracker",
+    "Tabs": {
+      "roster": "Pay & Roster",
+      "structure": "Army Structure"
+    },
+    "Day": "Day",
+    "DayShort": "day",
+    "DayTooltip": "Days elapsed since the campaign began",
+    "AdvanceDay": "Advance Day",
+    "AdvanceDayConfirm": "Advance to day {day}? Every roster member will receive their daily pay — debts are paid down first, and the remainder goes into their camp vault stash.",
+    "AdvancedNotice": "Advanced to day {day}. Pay has been distributed.",
+    "Col": {
+      "name": "Name",
+      "rank": "Rank",
+      "wage": "Daily Wage",
+      "net": "Net / Day",
+      "debt": "Debt",
+      "vault": "Camp Vault"
+    },
+    "Totals": "Totals",
+    "ToggleDetails": "Show / hide pay details",
+    "WageOverrideTooltip": "Override the daily wage. Leave blank to use the rank's default (shown greyed out).",
+    "Rank": {
+      "soldier": "Soldier",
+      "corporal": "Corporal",
+      "sergeant": "Sergeant",
+      "lieutenant": "Lieutenant",
+      "captain": "Captain"
+    },
+    "Deductions": "Daily Deductions",
+    "DeductionPh": "e.g. Food, Camp maintenance…",
+    "AddDeduction": "Add deduction",
+    "RemoveDeduction": "Remove deduction",
+    "NoDeductions": "No daily deductions.",
+    "TotalDeductions": "Total deductions / day",
+    "DefaultDeduction": {
+      "food": "Food",
+      "upkeep": "Camp maintenance"
+    },
+    "Salary": "Salary",
+    "BaseDaily": "Base daily wage",
+    "DeductionsDaily": "Deductions / day",
+    "NetDaily": "Net daily pay",
+    "Weekly": "Weekly ({days} days)",
+    "Monthly": "Monthly ({days} days)",
+    "Yearly": "Yearly ({days} days)",
+    "Finances": "Finances",
+    "MaxLoan": "Max loan ({months} months' salary)",
+    "GrantLoan": "Grant Loan",
+    "LoanPrompt": "How much to loan? Up to {available} {currency} remains available (loans are capped at six months' base salary by default).",
+    "LoanGranted": "Loaned {amount} {currency} to {name}.",
+    "LoanMaxed": "This member has already borrowed up to their loan limit.",
+    "RepayDebt": "Repay from Vault",
+    "RepayDebtTooltip": "Move money from this member's camp vault stash to pay down their debt.",
+    "NothingToRepay": "Nothing to repay — either there is no debt or the vault is empty.",
+    "AddMember": "Add Party Member",
+    "Add": "Add",
+    "RemoveMember": "Remove Member",
+    "RemoveConfirm": "Remove {name} from the roster? Their pay, debt and vault records will be deleted.",
+    "AddDialog": {
+      "actor": "Link to Actor (optional)",
+      "none": "— No linked actor —",
+      "name": "Or enter a name",
+      "namePh": "e.g. Marcus the Bold"
+    },
+    "UnnamedMember": "New Recruit",
+    "RosterEmpty": "No party members on the roster yet. Add your soldiers to begin tracking their pay.",
+    "RosterEmptyWarn": "The roster is empty — add party members before advancing the day.",
+    "Unit": {
+      "host": "Host",
+      "company": "Company",
+      "cohort": "Cohort",
+      "squad": "Squad",
+      "namePh": "{type} name…",
+      "add": {
+        "host": "Add Host",
+        "company": "Add Company",
+        "cohort": "Add Cohort",
+        "squad": "Add Squad",
+        "member": "Add Soldier"
+      },
+      "count": {
+        "companies": "companies",
+        "cohorts": "cohorts",
+        "squads": "squads",
+        "members": "soldiers"
+      }
+    },
+    "StructureHint": "The army is organised from largest to smallest: Host → Company → Cohort → Squad. Expand a unit with the chevron, name it, and record the characters serving in each squad. Everyone at the table can fill this in.",
+    "UnitEmpty": "Nothing here yet — use the + button on the header above to add a sub-unit.",
+    "SquadEmpty": "No soldiers recorded in this squad yet — use the + button to add one.",
+    "RemoveUnit": "Remove unit",
+    "RemoveUnitConfirm": "Remove {name} and everything inside it?",
+    "Member": {
+      "name": "Name",
+      "namePh": "Character name…",
+      "title": "Rank / Role",
+      "titlePh": "e.g. Standard-bearer",
+      "notes": "Notes",
+      "notesPh": "Anything worth remembering…",
+      "remove": "Remove soldier"
+    },
+    "NoGM": "No GM is connected — your changes cannot be saved right now.",
+    "Payday": {
+      "speaker": "Army Paymaster",
+      "header": "Day {day} — Payday",
+      "name": "Name",
+      "net": "Net Pay",
+      "vaultDelta": "Vault Δ",
+      "debtDelta": "Debt Δ",
+      "vault": "Vault",
+      "debt": "Debt",
+      "currencyNote": "All amounts in {currency}.",
+      "empty": "No troops on the roster — nobody to pay."
+    },
+    "Keybind": {
+      "open": "Open Army Tracker",
+      "openHint": "Opens the Army Tracker window."
+    },
+    "Settings": {
+      "wageHint": "Default daily wage for this rank. Individual members can override it in the tracker.",
+      "wageSoldier": { "name": "Daily Wage: Soldier" },
+      "wageCorporal": { "name": "Daily Wage: Corporal" },
+      "wageSergeant": { "name": "Daily Wage: Sergeant" },
+      "wageLieutenant": { "name": "Daily Wage: Lieutenant" },
+      "wageCaptain": { "name": "Daily Wage: Captain" },
+      "daysPerWeek": {
+        "name": "Days per Week",
+        "hint": "Used to calculate the weekly salary shown in the roster."
+      },
+      "daysPerMonth": {
+        "name": "Days per Month",
+        "hint": "Used to calculate the monthly salary and the loan cap."
+      },
+      "daysPerYear": {
+        "name": "Days per Year",
+        "hint": "Used to calculate the yearly salary shown in the roster."
+      },
+      "loanMonths": {
+        "name": "Loan Cap (months of salary)",
+        "hint": "Members may borrow up to this many months of their base salary."
+      },
+      "currency": {
+        "name": "Currency Label",
+        "hint": "Shown next to all monetary amounts, e.g. gp, sp, denarii."
+      }
+    }
+  }
+}

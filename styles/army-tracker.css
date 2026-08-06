@@ -1,0 +1,450 @@
+/* ========================================================= */
+/*  Army Tracker                                             */
+/* ========================================================= */
+
+.army-tracker {
+  --at-accent: #7d8a52;
+  --at-accent-strong: #9aad60;
+  --at-border: rgba(128, 128, 128, 0.35);
+  --at-border-soft: rgba(128, 128, 128, 0.2);
+  --at-row-hover: rgba(128, 128, 128, 0.1);
+  --at-panel-bg: rgba(128, 128, 128, 0.08);
+  --at-pos: #3d9950;
+  --at-neg: #c04b3c;
+}
+
+.army-tracker .window-content {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.army-tracker .at-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---------- Top bar ---------- */
+
+.army-tracker .at-topbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid var(--at-accent);
+}
+
+.army-tracker .at-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-right: auto;
+}
+
+.army-tracker .at-tab {
+  width: auto;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--at-border);
+  border-radius: 4px;
+  background: transparent;
+  opacity: 0.75;
+}
+
+.army-tracker .at-tab.active {
+  border-color: var(--at-accent-strong);
+  background: var(--at-panel-bg);
+  opacity: 1;
+  font-weight: bold;
+}
+
+.army-tracker .at-day {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.army-tracker .at-advance {
+  width: auto;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--at-accent-strong);
+  border-radius: 4px;
+  background: var(--at-accent);
+  color: #fff;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.army-tracker .at-advance:hover {
+  background: var(--at-accent-strong);
+}
+
+/* ---------- Body ---------- */
+
+.army-tracker .at-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  min-height: 0;
+}
+
+.army-tracker .at-hint {
+  opacity: 0.8;
+  font-style: italic;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.army-tracker .at-empty {
+  opacity: 0.65;
+  font-style: italic;
+  margin: 0.25rem 0;
+}
+
+.army-tracker .at-add,
+.army-tracker .at-add-small {
+  width: auto;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px dashed var(--at-border);
+  border-radius: 4px;
+  background: transparent;
+}
+
+.army-tracker .at-add:hover,
+.army-tracker .at-add-small:hover {
+  border-color: var(--at-accent-strong);
+}
+
+.army-tracker .at-add-small {
+  font-size: 0.85em;
+  padding: 0.1rem 0.5rem;
+}
+
+.army-tracker .at-icon-btn {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.army-tracker .at-icon-btn:hover {
+  background: var(--at-row-hover);
+  box-shadow: none;
+}
+
+.army-tracker .at-icon-btn.danger:hover {
+  color: var(--at-neg);
+}
+
+/* ---------- Roster table ---------- */
+
+.army-tracker .at-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
+}
+
+.army-tracker .at-table thead th {
+  text-align: left;
+  padding: 0.3rem 0.4rem;
+  border-bottom: 2px solid var(--at-border);
+  white-space: nowrap;
+}
+
+.army-tracker .at-table .at-unit-hint {
+  font-weight: normal;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.army-tracker .at-table td {
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px solid var(--at-border-soft);
+  vertical-align: middle;
+}
+
+.army-tracker .at-row:hover {
+  background: var(--at-row-hover);
+}
+
+.army-tracker .at-col-expand {
+  width: 2rem;
+}
+
+.army-tracker .at-col-actions {
+  width: 2.25rem;
+  text-align: center;
+}
+
+.army-tracker .at-col-num,
+.army-tracker .at-num {
+  text-align: right;
+}
+
+.army-tracker .at-num input {
+  width: 5.5rem;
+  text-align: right;
+}
+
+.army-tracker .at-name {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.army-tracker .at-name span {
+  vertical-align: middle;
+}
+
+.army-tracker .at-portrait {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border: 1px solid var(--at-border);
+  border-radius: 3px;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.army-tracker .at-net {
+  font-weight: bold;
+}
+
+.army-tracker .at-pos {
+  color: var(--at-pos);
+}
+
+.army-tracker .at-neg {
+  color: var(--at-neg);
+}
+
+.army-tracker .at-table tfoot td {
+  border-top: 2px solid var(--at-border);
+  border-bottom: none;
+  font-weight: bold;
+}
+
+.army-tracker .at-totals-label {
+  text-align: right;
+  opacity: 0.8;
+}
+
+/* ---------- Expanded detail row ---------- */
+
+.army-tracker .at-detail-row > td {
+  padding: 0;
+  background: var(--at-panel-bg);
+}
+
+.army-tracker .at-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem 0.75rem 2.4rem;
+}
+
+.army-tracker .at-panel h4 {
+  margin: 0 0 0.4rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid var(--at-border);
+  font-size: 0.95em;
+}
+
+.army-tracker .at-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.1rem 0;
+  font-size: 0.92em;
+}
+
+.army-tracker .at-line.at-total {
+  border-top: 1px solid var(--at-border-soft);
+  margin-top: 0.2rem;
+  padding-top: 0.25rem;
+  font-weight: bold;
+}
+
+.army-tracker .at-deductions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.army-tracker .at-deductions li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.army-tracker .at-deductions li input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.army-tracker .at-deductions .at-amount {
+  width: 4.5rem;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.army-tracker .at-btn-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.army-tracker .at-btn-row button {
+  flex: 1;
+  font-size: 0.85em;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--at-border);
+  border-radius: 4px;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.army-tracker .at-btn-row button:hover {
+  border-color: var(--at-accent-strong);
+}
+
+/* ---------- Army structure ---------- */
+
+.army-tracker .at-unit {
+  border: 1px solid var(--at-border-soft);
+  border-left: 3px solid var(--at-accent);
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+}
+
+.army-tracker .at-depth-1 { border-left-color: #8a7d52; }
+.army-tracker .at-depth-2 { border-left-color: #52708a; }
+.army-tracker .at-depth-3 { border-left-color: #7d528a; }
+
+.army-tracker .at-unit-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+}
+
+.army-tracker .at-unit.collapsed > .at-unit-header {
+  opacity: 0.9;
+}
+
+.army-tracker .at-unit-type {
+  flex: 0 0 auto;
+  font-size: 0.72em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--at-border);
+  border-radius: 3px;
+  opacity: 0.85;
+}
+
+.army-tracker .at-unit-name {
+  flex: 1;
+  min-width: 6rem;
+  font-weight: bold;
+  background: transparent;
+}
+
+.army-tracker .at-unit-summary {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+.army-tracker .at-unit-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.army-tracker .at-unit-children {
+  padding: 0.15rem 0.4rem 0.4rem 1.5rem;
+}
+
+.army-tracker .at-members {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.25rem 0 0;
+}
+
+.army-tracker .at-members th {
+  text-align: left;
+  font-size: 0.8em;
+  opacity: 0.75;
+  padding: 0.15rem 0.3rem;
+  border-bottom: 1px solid var(--at-border-soft);
+}
+
+.army-tracker .at-members td {
+  padding: 0.15rem 0.3rem;
+  border: none;
+}
+
+.army-tracker .at-members .at-m-name { width: 25%; }
+.army-tracker .at-members .at-m-title { width: 22%; }
+.army-tracker .at-members .at-m-actions { width: 2rem; }
+
+.army-tracker .at-members input {
+  width: 100%;
+}
+
+/* ---------- Actors directory button ---------- */
+
+.at-open-button {
+  white-space: nowrap;
+}
+
+/* ---------- Payday chat card ---------- */
+
+.at-payday h3 {
+  margin: 0 0 0.35rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 2px solid #7d8a52;
+  font-size: 1.05em;
+}
+
+.at-payday table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.25rem 0;
+  font-size: 0.85em;
+}
+
+.at-payday th,
+.at-payday td {
+  padding: 0.15rem 0.3rem;
+  text-align: right;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.at-payday .at-c-name {
+  text-align: left;
+}
+
+.at-payday .at-pos {
+  color: #3d9950;
+}
+
+.at-payday .at-neg {
+  color: #c04b3c;
+}
+
+.at-payday .at-currency-note {
+  margin: 0.2rem 0 0;
+  font-size: 0.8em;
+  opacity: 0.7;
+  font-style: italic;
+}
