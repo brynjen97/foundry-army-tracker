@@ -27,6 +27,8 @@ The **Advance Day** button (GM only) pays every roster member their net daily wa
 
 Each payday posts a summary card to chat showing everyone's pay, vault and debt changes.
 
+The fast-forward button next to it advances **multiple days at once** (e.g. skip 20 days of travel) — pay is applied day by day so debt is still paid off before vault savings accumulate, and a single chat card summarises the whole period.
+
 ### Army Structure
 
 A collapsible hierarchy — **Host → Company → Cohort → Squad** — that anyone at the table can edit:

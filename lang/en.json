@@ -12,6 +12,10 @@
     "AdvanceDay": "Advance Day",
     "AdvanceDayConfirm": "Advance to day {day}? Every roster member will receive their daily pay — debts are paid down first, and the remainder goes into their camp vault stash.",
     "AdvancedNotice": "Advanced to day {day}. Pay has been distributed.",
+    "AdvanceDays": "Advance Multiple Days",
+    "AdvanceDaysPrompt": "How many days should pass? Pay is applied for each day in sequence — debts are paid down first, and the remainder goes into each member's camp vault.",
+    "AdvanceDaysLabel": "Number of days",
+    "AdvancedNoticeMulti": "Advanced {days} days to day {day}. Pay has been distributed.",
     "Col": {
       "name": "Name",
       "rank": "Rank",
@@ -107,6 +111,7 @@
     "Payday": {
       "speaker": "Army Paymaster",
       "header": "Day {day} — Payday",
+      "headerMulti": "Days {from}–{to} — Payday ({days} days)",
       "name": "Name",
       "net": "Net Pay",
       "vaultDelta": "Vault Δ",

@@ -191,12 +191,16 @@ export function onSocketMessage(message) {
 /* -------------------------------------------- */
 
 /**
- * Advance the campaign by one day (GM only). Each member's net daily pay is
- * applied to their debt first; the remainder goes into their camp vault stash.
- * A negative net wage is drawn from the vault, then becomes debt.
+ * Advance the campaign by one or more days (GM only). Each day, every member's
+ * net daily pay is applied to their debt first; the remainder goes into their
+ * camp vault stash. A negative net wage is drawn from the vault, then becomes
+ * debt. Multi-day advances apply the same logic day by day, so pay keeps
+ * chipping away at debt before it starts accumulating in the vault.
+ * @param {number} [days=1]  Number of days to advance (1–3650).
  */
-export async function advanceDay() {
+export async function advanceDay(days = 1) {
   if (!game.user.isGM) return;
+  days = Math.max(1, Math.min(3650, Math.floor(Number(days) || 1)));
   const data = getArmyData();
   const cfg = getConfig();
   const rows = [];
@@ -208,22 +212,24 @@ export async function advanceDay() {
     let debt = oldDebt;
     let vault = oldVault;
 
-    if (pay.net >= 0) {
-      const towardDebt = Math.min(debt, pay.net);
-      debt = round2(debt - towardDebt);
-      vault = round2(vault + (pay.net - towardDebt));
-    } else {
-      const deficit = -pay.net;
-      const fromVault = Math.min(vault, deficit);
-      vault = round2(vault - fromVault);
-      debt = round2(debt + (deficit - fromVault));
+    for (let i = 0; i < days; i++) {
+      if (pay.net >= 0) {
+        const towardDebt = Math.min(debt, pay.net);
+        debt = round2(debt - towardDebt);
+        vault = round2(vault + (pay.net - towardDebt));
+      } else {
+        const deficit = -pay.net;
+        const fromVault = Math.min(vault, deficit);
+        vault = round2(vault - fromVault);
+        debt = round2(debt + (deficit - fromVault));
+      }
     }
 
     member.debt = debt;
     member.vault = vault;
     rows.push({
       name: memberName(member),
-      net: pay.net,
+      net: round2(pay.net * days),
       debtDelta: round2(debt - oldDebt),
       vaultDelta: round2(vault - oldVault),
       debt,
@@ -231,7 +237,8 @@ export async function advanceDay() {
     });
   }
 
-  data.day = (data.day ?? 0) + 1;
+  const startDay = (data.day ?? 0) + 1;
+  data.day = (data.day ?? 0) + days;
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
   const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
@@ -252,15 +259,19 @@ export async function advanceDay() {
       <td>${fmt(r.debt)}</td>
     </tr>`).join("");
 
+  const header = days > 1
+    ? game.i18n.format("ARMY.Payday.headerMulti", { from: startDay, to: data.day, days })
+    : game.i18n.format("ARMY.Payday.header", { day: data.day });
+
   const content = `
     <div class="at-payday">
-      <h3><i class="fa-solid fa-coins"></i> ${game.i18n.format("ARMY.Payday.header", { day: data.day })}</h3>
+      <h3><i class="fa-solid fa-coins"></i> ${header}</h3>
       ${rows.length ? `
       <table>
         <thead>
           <tr>
             <th class="at-c-name">${loc("ARMY.Payday.name")}</th>
-            <th>${loc("ARMY.Payday.net")}</th>
+            <th>${loc("ARMY.Payday.net")}${days > 1 ? ` (${days}d)` : ""}</th>
             <th>${loc("ARMY.Payday.vaultDelta")}</th>
             <th>${loc("ARMY.Payday.debtDelta")}</th>
             <th>${loc("ARMY.Payday.vault")}</th>

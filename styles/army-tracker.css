@@ -79,6 +79,11 @@
   background: var(--at-accent-strong);
 }
 
+.army-tracker .at-advance-multi {
+  padding: 0.25rem 0.5rem;
+  margin-left: -0.5rem;
+}
+
 /* ---------- Body ---------- */
 
 .army-tracker .at-body {

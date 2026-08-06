@@ -30,6 +30,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     actions: {
       switchTab: ArmyTrackerApp._onSwitchTab,
       advanceDay: ArmyTrackerApp._onAdvanceDay,
+      advanceDays: ArmyTrackerApp._onAdvanceDays,
       addMember: ArmyTrackerApp._onAddMember,
       removeMember: ArmyTrackerApp._onRemoveMember,
       toggleRow: ArmyTrackerApp._onToggleRow,
@@ -248,6 +249,37 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!confirmed) return;
     await advanceDay();
     ui.notifications.info(game.i18n.format("ARMY.AdvancedNotice", { day: (data.day ?? 0) + 1 }));
+  }
+
+  static async _onAdvanceDays() {
+    if (!game.user.isGM) return;
+    const data = getArmyData();
+    if (!data.roster.length) {
+      ui.notifications.warn(game.i18n.localize("ARMY.RosterEmptyWarn"));
+      return;
+    }
+    const result = await DialogV2.prompt({
+      window: { title: game.i18n.localize("ARMY.AdvanceDays") },
+      content: `
+        <p>${game.i18n.localize("ARMY.AdvanceDaysPrompt")}</p>
+        <div class="form-group">
+          <label>${game.i18n.localize("ARMY.AdvanceDaysLabel")}</label>
+          <input type="number" name="days" min="1" max="3650" step="1" value="7" autofocus>
+        </div>`,
+      rejectClose: false,
+      ok: {
+        label: game.i18n.localize("ARMY.AdvanceDays"),
+        icon: "fa-solid fa-forward-fast",
+        callback: (event, button) => Number(button.form.elements.days.value)
+      }
+    });
+    if (!result || Number.isNaN(result) || result < 1) return;
+    const days = Math.max(1, Math.min(3650, Math.floor(result)));
+    await advanceDay(days);
+    ui.notifications.info(game.i18n.format("ARMY.AdvancedNoticeMulti", {
+      days,
+      day: (data.day ?? 0) + days
+    }));
   }
 
   static async _onAddMember() {
