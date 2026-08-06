@@ -255,6 +255,8 @@
     "ExpandAll": "Expand all",
     "CollapseAll": "Collapse all",
     "ExpandAllTooltip": "Open every unit in the army.",
-    "CollapseAllTooltip": "Close every unit, including the army itself."
+    "CollapseAllTooltip": "Close every unit, including the army itself.",
+    "OfficerVacant": "{title} (unnamed)",
+    "PrimaryOfficerTooltip": "Commanding officer of this unit — the first in its officer list."
   }
 }

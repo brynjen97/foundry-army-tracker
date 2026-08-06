@@ -411,6 +411,21 @@
   border-left-color: var(--at-accent-strong);
 }
 
+.army-tracker .at-unit-officer {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.army-tracker .at-unit-officer.at-vacant {
+  opacity: 0.5;
+  font-style: italic;
+}
+
 .army-tracker .at-unit-strength {
   flex: 0 0 auto;
   font-size: 0.85em;

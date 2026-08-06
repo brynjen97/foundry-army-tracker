@@ -241,6 +241,21 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         index: i
       }));
       node.officerTotal = officerCount(unit, depth);
+
+      // The first officer commands the unit, and is shown on its header so a
+      // collapsed army still reads as "1st Host — Helm Aldric". A generated
+      // army titles every officer but leaves them unnamed, so that case is
+      // called out rather than rendered as a title trailing into nothing.
+      const primary = officers[0];
+      if (primary) {
+        const title = (primary.title ?? "").trim();
+        const name = (primary.name ?? "").trim();
+        node.primaryOfficerVacant = !name;
+        if (title && name) node.primaryOfficer = `${title} ${name}`;
+        else if (name) node.primaryOfficer = name;
+        else if (title) node.primaryOfficer = game.i18n.format("ARMY.OfficerVacant", { title });
+        else node.primaryOfficer = null;
+      }
     }
 
     if (level.childKey) {
