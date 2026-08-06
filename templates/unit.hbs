@@ -1,6 +1,7 @@
 <div class="at-unit at-depth-{{depth}} {{#if collapsed}}collapsed{{/if}} {{#if isRoot}}at-root{{/if}}">
   <div class="at-unit-header">
-    <button type="button" class="at-icon-btn" data-action="toggleUnit" data-id="{{id}}">
+    <button type="button" class="at-icon-btn" data-action="toggleUnit" data-id="{{id}}"
+            data-collapsed="{{collapsed}}">
       <i class="fa-solid fa-chevron-{{#if collapsed}}right{{else}}down{{/if}}"></i>
     </button>
     <span class="at-unit-type">{{typeLabel}}</span>

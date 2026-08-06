@@ -134,7 +134,7 @@
       "notesLabel": "Army notes",
       "notesPh": "Campaign notes, standing orders, anything worth keeping at army level…"
     },
-    "StructureHint": "The army runs from the top down: Army → Host → Company → Cohort → Squad. Expand a unit with the chevron, name it, and record the characters serving in each squad. Everyone at the table can fill this in.",
+    "StructureHint": "The army runs from the top down: Army → Host → Company → Cohort → Squad. Units start collapsed — open one with the chevron to name it and record who serves in it. Everyone at the table can fill this in.",
     "UnitEmpty": "Nothing here yet — use the + button on the header above to add a sub-unit.",
     "SquadEmpty": "No soldiers recorded in this squad yet — use the + button to add one.",
     "RemoveUnit": "Remove unit",
@@ -251,6 +251,10 @@
         "squadsPerCohort": "Squads per cohort",
         "soldiersPerSquad": "Soldiers per squad"
       }
-    }
+    },
+    "ExpandAll": "Expand all",
+    "CollapseAll": "Collapse all",
+    "ExpandAllTooltip": "Open every unit in the army.",
+    "CollapseAllTooltip": "Close every unit, including the army itself."
   }
 }

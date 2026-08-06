@@ -47,7 +47,8 @@ The fast-forward button next to it advances **multiple days at once** (e.g. skip
 
 A collapsible hierarchy — **Army → Host → Company → Cohort → Squad** — that anyone at the table can edit:
 
-- Name each unit and add sub-units with the **+** button on its header.
+- Units start **collapsed** — only the army itself opens by default, so a generated army of several hundred soldiers fits on one screen instead of unrolling into a wall of units. **Expand all** / **Collapse all** buttons sit above the tree, and opening a unit remembers itself while the window stays open.
+- Name each unit and add sub-units with the **+** button on its header. Adding one opens both it and its parent, so what you just created is visible.
 - Squads hold a roster of named characters with a rank/role and free-text notes, so players can record the NPCs they serve alongside.
 - The **Army** sits at the root of the tree and carries a free-text notes field for campaign notes and standing orders.
 - Collapsed units show a summary count, keeping big armies readable.

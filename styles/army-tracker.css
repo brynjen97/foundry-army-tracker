@@ -421,8 +421,13 @@
 
 .army-tracker .at-structure-tools {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
   margin-bottom: 0.6rem;
+}
+
+.army-tracker .at-tools-spacer {
+  flex: 1;
 }
 
 .army-tracker .at-structure-tools button {

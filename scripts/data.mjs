@@ -109,6 +109,17 @@ export function unitStrength(unit, depth) {
   return (unit[level.childKey] ?? []).reduce((sum, child) => sum + unitStrength(child, depth + 1), 0);
 }
 
+/** Every unit id at or beneath this one, for bulk expand/collapse. */
+export function collectUnitIds(unit, depth, out = []) {
+  if (!unit) return out;
+  out.push(unit.id);
+  const level = LEVELS[depth];
+  if (level?.childKey) {
+    for (const child of unit[level.childKey] ?? []) collectUnitIds(child, depth + 1, out);
+  }
+  return out;
+}
+
 /** How many officers sit at this unit and every unit beneath it. */
 export function officerCount(unit, depth) {
   const level = LEVELS[depth];
