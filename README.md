@@ -61,13 +61,45 @@ Player edits are relayed through the GM's client, so a GM must be connected for 
 
 ## Installation
 
-**Manifest URL** (Foundry → Add-on Modules → Install Module):
+### Option 1 — Manual (works immediately)
+
+Drop the files into your Foundry user data folder. The folder **must** be named `foundry-army-tracker`, matching the `id` in `module.json`, or Foundry will refuse to load it.
+
+```bash
+cd /path/to/FoundryVTT/Data/modules
+git clone https://github.com/Dingus17/foundry-army-tracker.git foundry-army-tracker
+```
+
+Or without git: download the repository as a ZIP from GitHub (*Code → Download ZIP*), unpack it, and rename the extracted `foundry-army-tracker-main` folder to `foundry-army-tracker`.
+
+To pick up later changes, `git pull` inside that folder and reload Foundry (F5).
+
+Where `Data` lives depends on your platform — Foundry shows the exact path under *Configuration → User Data Path*:
+
+| Platform | Default location |
+| --- | --- |
+| Windows | `%localappdata%\FoundryVTT\Data\modules` |
+| macOS | `~/Library/Application Support/FoundryVTT/Data/modules` |
+| Linux | `~/.local/share/FoundryVTT/Data/modules` |
+
+Then restart Foundry, and enable **Army Tracker** under *Game Settings → Manage Modules* in your world.
+
+### Option 2 — Manifest URL (needs a release first)
+
+Push a version tag and the included GitHub Action builds the release assets:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Once the action finishes, install in Foundry via *Add-on Modules → Install Module → Manifest URL*:
 
 ```
-https://github.com/dingus17/foundry-army-tracker/releases/latest/download/module.json
+https://github.com/Dingus17/foundry-army-tracker/releases/latest/download/module.json
 ```
 
-**Manual**: clone or download this repository into your user data folder as `Data/modules/foundry-army-tracker`, then restart Foundry and enable *Army Tracker* in your world.
+This path also gives you update notifications in Foundry when you tag future versions.
 
 ## Settings
 
