@@ -41,6 +41,7 @@ export function getArmyData() {
   army.id ??= foundry.utils.randomID();
   army.name ??= "";
   army.notes ??= "";
+  army.level ??= 1;
   army.officers ??= [];
   army.hosts ??= [];
   return data;

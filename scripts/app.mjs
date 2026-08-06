@@ -17,6 +17,7 @@ import {
 import { getCounts, getDeductionTemplate, getOfficerTitles, getRanks, includeOfficers } from "./settings.mjs";
 import { ArmyConfigApp } from "./config-app.mjs";
 import { carriedGold, coinLabel } from "./currency.mjs";
+import { MAX_ITEM_LEVEL, openArmyShop, shopAvailable } from "./shop.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
 
@@ -91,6 +92,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       toggleUnit: ArmyTrackerApp._onToggleUnit,
       expandAll: ArmyTrackerApp._onExpandAll,
       collapseAll: ArmyTrackerApp._onCollapseAll,
+      openShop: ArmyTrackerApp._onOpenShop,
       addOfficer: ArmyTrackerApp._onAddOfficer,
       removeOfficer: ArmyTrackerApp._onRemoveOfficer,
       generateArmy: ArmyTrackerApp._onGenerateArmy,
@@ -195,7 +197,9 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         vaultF: fmt(totals.vault)
       },
       army,
-      officersEnabled: includeOfficers()
+      officersEnabled: includeOfficers(),
+      shopAvailable: shopAvailable(),
+      maxItemLevel: MAX_ITEM_LEVEL
     };
   }
 
@@ -220,6 +224,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       isRoot,
       name: unit.name ?? "",
       notes: unit.notes ?? "",
+      level: isRoot ? (unit.level ?? 1) : null,
       typeLabel: game.i18n.localize(`ARMY.Unit.${level.type}`),
       namePlaceholder: game.i18n.format("ARMY.Unit.namePh", {
         type: game.i18n.localize(`ARMY.Unit.${level.type}`)
@@ -735,5 +740,10 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static _onOpenConfig() {
     new ArmyConfigApp().render({ force: true });
+  }
+
+  /** Read the level from stored data rather than the button, so it is never stale. */
+  static async _onOpenShop() {
+    await openArmyShop(getArmyData().structure.army?.level ?? 1);
   }
 }

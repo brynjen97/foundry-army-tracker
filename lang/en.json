@@ -257,6 +257,14 @@
     "ExpandAllTooltip": "Open every unit in the army.",
     "CollapseAllTooltip": "Close every unit, including the army itself.",
     "OfficerVacant": "{title} (unnamed)",
-    "PrimaryOfficerTooltip": "Commanding officer of this unit — the first in its officer list."
+    "PrimaryOfficerTooltip": "Commanding officer of this unit — the first in its officer list.",
+    "Level": "Level",
+    "LevelTooltip": "The army's level. On Pathfinder 2e this sets the ceiling for the shop browser.",
+    "Shop": {
+      "tooltip": "Browse common equipment up to the army's level",
+      "unavailable": "The Pathfinder 2e compendium browser isn't available in this world.",
+      "failed": "Could not open the compendium browser.",
+      "unfiltered": "Compendium browser opened, but the level and rarity filters could not be applied — filter to common items up to level {level} yourself."
+    }
   }
 }

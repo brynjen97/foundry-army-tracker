@@ -47,6 +47,7 @@ The fast-forward button next to it advances **multiple days at once** (e.g. skip
 
 A collapsible hierarchy — **Army → Host → Company → Cohort → Squad** — that anyone at the table can edit:
 
+- The army carries a **level**, shown on its header. On **Pathfinder 2e** a shop icon sits beside it and opens the system's compendium browser on the equipment tab, filtered to **common items at or below that level** — a quick way to see what the army could plausibly source. The icon only appears on PF2e; the level field itself is available on any system.
 - Units start **collapsed** — only the army itself opens by default, so a generated army of several hundred soldiers fits on one screen instead of unrolling into a wall of units. **Expand all** / **Collapse all** buttons sit above the tree, and opening a unit remembers itself while the window stays open.
 - Name each unit and add sub-units with the **+** button on its header. Adding one opens both it and its parent, so what you just created is visible.
 - Squads hold a roster of named characters with a rank/role and free-text notes, so players can record the NPCs they serve alongside.

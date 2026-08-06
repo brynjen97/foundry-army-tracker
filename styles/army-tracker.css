@@ -411,6 +411,31 @@
   border-left-color: var(--at-accent-strong);
 }
 
+.army-tracker .at-army-level {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.army-tracker .at-army-level label {
+  font-size: 0.72em;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+}
+
+.army-tracker .at-army-level input {
+  width: 3.2rem;
+  text-align: center;
+}
+
+.army-tracker .at-shop-btn:hover {
+  color: var(--at-accent-strong);
+}
+
 .army-tracker .at-unit-officer {
   flex: 0 1 auto;
   min-width: 0;
