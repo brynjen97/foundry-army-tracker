@@ -2,9 +2,12 @@ import { MODULE_ID, LEVELS } from "./constants.mjs";
 import {
   advanceDay,
   applyOps,
+  bonusFor,
   buildStructure,
   collectUnitIds,
   computePay,
+  grantBonus,
+  memberName,
   fmt,
   getArmyData,
   getConfig,
@@ -78,6 +81,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       switchTab: ArmyTrackerApp._onSwitchTab,
       advanceDay: ArmyTrackerApp._onAdvanceDay,
       advanceDays: ArmyTrackerApp._onAdvanceDays,
+      grantBonus: ArmyTrackerApp._onGrantBonus,
       addMember: ArmyTrackerApp._onAddMember,
       removeMember: ArmyTrackerApp._onRemoveMember,
       toggleRow: ArmyTrackerApp._onToggleRow,
@@ -377,6 +381,94 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!confirmed) return;
     await advanceDay();
     ui.notifications.info(game.i18n.format("ARMY.AdvancedNotice", { day: (data.day ?? 0) + 1 }));
+  }
+
+  /**
+   * Pay a bonus to the whole roster. The dialog previews what each member
+   * would receive under every option, because week and month bonuses vary
+   * per character and the totals are otherwise invisible until it is done.
+   */
+  static async _onGrantBonus() {
+    if (!game.user.isGM) return;
+    const data = getArmyData();
+    if (!data.roster.length) {
+      ui.notifications.warn(game.i18n.localize("ARMY.RosterEmptyWarn"));
+      return;
+    }
+    const cfg = getConfig();
+    const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
+    const loc = (k) => game.i18n.localize(k);
+
+    const preview = data.roster.map((m) => ({
+      name: memberName(m),
+      week: bonusFor(m, { mode: "week" }),
+      month: bonusFor(m, { mode: "month" })
+    }));
+    const sum = (key) => preview.reduce((t, r) => t + r[key], 0);
+
+    const rows = preview.map((r) => `
+      <tr><td>${esc(r.name)}</td><td style="text-align:right">${fmt(r.week)}</td>
+      <td style="text-align:right">${fmt(r.month)}</td></tr>`).join("");
+
+    const content = `
+      <p>${loc("ARMY.Bonus.prompt")}</p>
+      <div class="form-group">
+        <label>${loc("ARMY.Bonus.mode")}</label>
+        <select name="mode">
+          <option value="flat">${loc("ARMY.Bonus.modeFlat")}</option>
+          <option value="week">${game.i18n.format("ARMY.Bonus.modeWeek", { days: cfg.daysPerWeek })}</option>
+          <option value="month">${game.i18n.format("ARMY.Bonus.modeMonth", { days: cfg.daysPerMonth })}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>${game.i18n.format("ARMY.Bonus.amount", { currency: cfg.currency })}</label>
+        <input type="number" step="any" min="0" name="amount" value="0">
+      </div>
+      <label class="at-check" style="display:flex;gap:.4rem;align-items:center;margin:.25rem 0">
+        <input type="checkbox" name="clearDebtFirst" style="width:auto">
+        <span>${loc("ARMY.Bonus.debtFirst")}</span>
+      </label>
+      <p class="at-hint">${loc("ARMY.Bonus.basis")}</p>
+      <table class="at-bonus-preview">
+        <thead><tr>
+          <th>${loc("ARMY.Payday.name")}</th>
+          <th style="text-align:right">${loc("ARMY.Bonus.weekCol")}</th>
+          <th style="text-align:right">${loc("ARMY.Bonus.monthCol")}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <th>${loc("ARMY.Totals")}</th>
+          <th style="text-align:right">${fmt(sum("week"))}</th>
+          <th style="text-align:right">${fmt(sum("month"))}</th>
+        </tr></tfoot>
+      </table>`;
+
+    const result = await DialogV2.prompt({
+      window: { title: loc("ARMY.Bonus.title") },
+      content,
+      rejectClose: false,
+      ok: {
+        label: loc("ARMY.Bonus.grant"),
+        icon: "fa-solid fa-gift",
+        callback: (event, button) => ({
+          mode: button.form.elements.mode.value,
+          amount: Number(button.form.elements.amount.value),
+          clearDebtFirst: button.form.elements.clearDebtFirst.checked
+        })
+      }
+    });
+    if (!result) return;
+    if (result.mode === "flat" && !(result.amount > 0)) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Bonus.needAmount"));
+      return;
+    }
+
+    const outcome = await grantBonus(result);
+    if (outcome) {
+      ui.notifications.info(game.i18n.format("ARMY.Bonus.done", {
+        total: fmt(outcome.total), currency: cfg.currency, count: outcome.count
+      }));
+    }
   }
 
   static async _onAdvanceDays() {

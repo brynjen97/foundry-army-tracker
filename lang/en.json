@@ -265,6 +265,31 @@
       "unavailable": "The Pathfinder 2e compendium browser isn't available in this world.",
       "failed": "Could not open the compendium browser.",
       "unfiltered": "Compendium browser opened, but the level and rarity filters could not be applied — filter to common items up to level {level} yourself."
+    },
+    "Bonus": {
+      "button": "Bonus",
+      "tooltip": "Pay a bonus to every member of the roster.",
+      "title": "Grant Party Bonus",
+      "grant": "Grant Bonus",
+      "prompt": "Pay a bonus to everyone on the roster. It goes straight into each member's camp vault.",
+      "mode": "Bonus type",
+      "modeFlat": "Flat amount — the same for everyone",
+      "modeWeek": "One week's pay ({days} days) — varies per member",
+      "modeMonth": "One month's pay ({days} days) — varies per member",
+      "amount": "Flat amount per member ({currency})",
+      "debtFirst": "Pay down outstanding debt first, banking only the remainder",
+      "basis": "Week and month bonuses are based on each member's base wage before deductions, so living costs don't eat into the reward.",
+      "weekCol": "1 week",
+      "monthCol": "1 month",
+      "col": "Bonus",
+      "needAmount": "Enter an amount greater than zero for a flat bonus.",
+      "header": {
+        "flat": "Bonus Paid",
+        "week": "Bonus Paid — One Week's Pay",
+        "month": "Bonus Paid — One Month's Pay"
+      },
+      "total": "{count} members paid, {total} {currency} in total.",
+      "done": "Bonus paid: {total} {currency} across {count} members."
     }
   }
 }

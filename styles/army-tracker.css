@@ -84,6 +84,38 @@
   margin-left: -0.5rem;
 }
 
+.army-tracker .at-bonus {
+  width: auto;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--at-border);
+  border-radius: 4px;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.army-tracker .at-bonus:hover {
+  border-color: var(--at-accent-strong);
+}
+
+/* Preview table inside the bonus dialog */
+.at-bonus-preview {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.4rem;
+  font-size: 0.85em;
+}
+
+.at-bonus-preview th,
+.at-bonus-preview td {
+  padding: 0.1rem 0.3rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.at-bonus-preview tfoot th {
+  border-top: 2px solid rgba(128, 128, 128, 0.4);
+  border-bottom: none;
+}
+
 /* ---------- Body ---------- */
 
 .army-tracker .at-body {

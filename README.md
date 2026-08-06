@@ -43,6 +43,15 @@ Each payday posts a summary card to chat showing everyone's pay, vault and debt 
 
 The fast-forward button next to it advances **multiple days at once** (e.g. skip 20 days of travel) — pay is applied day by day so debt is still paid off before vault savings accumulate, and a single chat card summarises the whole period.
 
+### Bonuses
+
+The **Bonus** button (GM only) pays every member of the roster at once, straight into their camp vaults. Three options:
+
+- **Flat amount** — the same figure for everyone.
+- **One week's pay** and **one month's pay** — vary per member with their rank and any wage override.
+
+Week and month bonuses use each member's **base wage before deductions**, so daily living costs don't eat into the reward, and a member whose deductions exceed their wage still receives something instead of a negative "bonus". The dialog previews exactly what every member would get under both options, with totals, before you commit. Optionally tick **pay down debt first** to clear outstanding debt before banking the remainder. Each bonus posts a summary card to chat.
+
 ### Army Structure
 
 A collapsible hierarchy — **Army → Host → Company → Cohort → Squad** — that anyone at the table can edit:

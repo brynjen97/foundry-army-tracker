@@ -476,3 +476,111 @@ export async function advanceDay(days = 1) {
     speaker: { alias: loc("ARMY.Payday.speaker") }
   });
 }
+
+/* -------------------------------------------- */
+/*  Bonuses                                     */
+/* -------------------------------------------- */
+
+/**
+ * What a single member would receive from a bonus.
+ *
+ * Week and month bonuses are worked out from the member's *base* wage rather
+ * than their net pay. A bonus is a reward on top of their wages, so daily
+ * living costs should not eat into it — and it means a member whose
+ * deductions exceed their wage still receives something rather than a
+ * negative "bonus".
+ */
+export function bonusFor(member, { mode, amount = 0 }) {
+  const cfg = getConfig();
+  const base = round2(effectiveWage(member));
+  let value;
+  switch (mode) {
+    case "week": value = base * cfg.daysPerWeek; break;
+    case "month": value = base * cfg.daysPerMonth; break;
+    default: value = Number(amount) || 0;
+  }
+  return Math.max(0, round2(value));
+}
+
+/**
+ * Pay a bonus to every member of the roster (GM only).
+ * Goes straight into each member's camp vault unless clearDebtFirst is set,
+ * in which case it pays down debt first the way ordinary wages do.
+ */
+export async function grantBonus({ mode, amount = 0, clearDebtFirst = false }) {
+  if (!game.user.isGM) return null;
+  const data = getArmyData();
+  const cfg = getConfig();
+  const rows = [];
+  let total = 0;
+
+  for (const member of data.roster) {
+    const bonus = bonusFor(member, { mode, amount });
+    const oldDebt = round2(member.debt ?? 0);
+    let debt = oldDebt;
+    let vault = round2(member.vault ?? 0);
+
+    if (clearDebtFirst) {
+      const towardDebt = Math.min(debt, bonus);
+      debt = round2(debt - towardDebt);
+      vault = round2(vault + (bonus - towardDebt));
+    } else {
+      vault = round2(vault + bonus);
+    }
+
+    member.debt = debt;
+    member.vault = vault;
+    total = round2(total + bonus);
+    rows.push({
+      name: memberName(member),
+      bonus,
+      debtDelta: round2(debt - oldDebt),
+      vault,
+      debt
+    });
+  }
+
+  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+
+  const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
+  const loc = (k) => game.i18n.localize(k);
+  const body = rows.map((r) => `
+    <tr>
+      <td class="at-c-name">${esc(r.name)}</td>
+      <td class="${r.bonus ? "at-pos" : ""}">${r.bonus ? `+${fmt(r.bonus)}` : fmt(0)}</td>
+      <td class="${r.debtDelta < 0 ? "at-pos" : ""}">${r.debtDelta ? fmt(r.debtDelta) : "—"}</td>
+      <td>${fmt(r.vault)}</td>
+      <td>${fmt(r.debt)}</td>
+    </tr>`).join("");
+
+  const content = `
+    <div class="at-payday">
+      <h3><i class="fa-solid fa-gift"></i> ${loc(`ARMY.Bonus.header.${mode}`)}</h3>
+      ${rows.length ? `
+      <div class="at-payday-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="at-c-name">${loc("ARMY.Payday.name")}</th>
+            <th>${loc("ARMY.Bonus.col")}</th>
+            <th>${loc("ARMY.Payday.debtDelta")}</th>
+            <th>${loc("ARMY.Payday.vault")}</th>
+            <th>${loc("ARMY.Payday.debt")}</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+      </div>
+      <p class="at-currency-note">${game.i18n.format("ARMY.Bonus.total", {
+        total: fmt(total), currency: esc(cfg.currency), count: rows.length
+      })}</p>
+      ` : `<p>${loc("ARMY.Payday.empty")}</p>`}
+    </div>`;
+
+  await ChatMessage.create({
+    content,
+    speaker: { alias: loc("ARMY.Payday.speaker") }
+  });
+
+  return { total, count: rows.length };
+}
