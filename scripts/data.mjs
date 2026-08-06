@@ -1,87 +1,57 @@
-import { MODULE_ID, RANKS, SETTING_DATA } from "./constants.mjs";
+import { LEVELS, MODULE_ID, SETTING_DATA } from "./constants.mjs";
 import { round2, fmt } from "./util.mjs";
 import { giveToActor, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
+import {
+  DEFAULT_STRUCTURE,
+  getConfig,
+  getCounts,
+  getDeductionTemplate,
+  getOfficerTitles,
+  getRank,
+  getRanks,
+  includeOfficers,
+  registerSettings,
+  seedDefaults,
+  soldiersPerSquad
+} from "./settings.mjs";
 
-export { round2, fmt };
+export { round2, fmt, getConfig, registerSettings, seedDefaults, getRanks };
 
-export const DEFAULT_DATA = { day: 0, roster: [], structure: { hosts: [] } };
-
-/* -------------------------------------------- */
-/*  Settings                                    */
-/* -------------------------------------------- */
-
-export function registerSettings() {
-  game.settings.register(MODULE_ID, SETTING_DATA, {
-    scope: "world",
-    config: false,
-    type: Object,
-    default: foundry.utils.deepClone(DEFAULT_DATA)
-  });
-
-  for (const rank of Object.values(RANKS)) {
-    game.settings.register(MODULE_ID, rank.setting, {
-      name: `ARMY.Settings.${rank.setting}.name`,
-      hint: "ARMY.Settings.wageHint",
-      scope: "world",
-      config: true,
-      type: Number,
-      default: rank.defaultWage
-    });
-  }
-
-  const numeric = [
-    ["daysPerWeek", 7],
-    ["daysPerMonth", 30],
-    ["daysPerYear", 360],
-    ["loanMonths", 6]
-  ];
-  for (const [key, def] of numeric) {
-    game.settings.register(MODULE_ID, key, {
-      name: `ARMY.Settings.${key}.name`,
-      hint: `ARMY.Settings.${key}.hint`,
-      scope: "world",
-      config: true,
-      type: Number,
-      default: def
-    });
-  }
-
-  game.settings.register(MODULE_ID, "currency", {
-    name: "ARMY.Settings.currency.name",
-    hint: "ARMY.Settings.currency.hint",
-    scope: "world",
-    config: true,
-    type: String,
-    default: "gp"
-  });
-}
-
-export function getConfig() {
-  return {
-    daysPerWeek: game.settings.get(MODULE_ID, "daysPerWeek"),
-    daysPerMonth: game.settings.get(MODULE_ID, "daysPerMonth"),
-    daysPerYear: game.settings.get(MODULE_ID, "daysPerYear"),
-    loanMonths: game.settings.get(MODULE_ID, "loanMonths"),
-    currency: game.settings.get(MODULE_ID, "currency")
-  };
-}
+export const DEFAULT_DATA = () => ({ day: 0, roster: [], structure: DEFAULT_STRUCTURE() });
 
 /* -------------------------------------------- */
 /*  Data access                                 */
 /* -------------------------------------------- */
 
 export function getArmyData() {
-  const stored = game.settings.get(MODULE_ID, SETTING_DATA) ?? {};
-  const data = foundry.utils.mergeObject(foundry.utils.deepClone(DEFAULT_DATA), foundry.utils.deepClone(stored), { inplace: false });
+  const stored = foundry.utils.deepClone(game.settings.get(MODULE_ID, SETTING_DATA) ?? {});
+  const data = foundry.utils.mergeObject(DEFAULT_DATA(), stored, { inplace: false });
   data.roster ??= [];
-  data.structure ??= { hosts: [] };
-  data.structure.hosts ??= [];
+  data.structure ??= {};
+
+  // Pre-army-level worlds stored hosts at the root; adopt them under the army.
+  if (Array.isArray(data.structure.hosts) && !data.structure.army) {
+    data.structure = {
+      army: { id: foundry.utils.randomID(), name: "", notes: "", officers: [], hosts: data.structure.hosts }
+    };
+  }
+  delete data.structure.hosts;
+
+  const army = data.structure.army ?? (data.structure.army = {});
+  army.id ??= foundry.utils.randomID();
+  army.name ??= "";
+  army.notes ??= "";
+  army.officers ??= [];
+  army.hosts ??= [];
   return data;
 }
 
-export function getRankWage(rank) {
-  const r = RANKS[rank] ?? RANKS.soldier;
-  return Number(game.settings.get(MODULE_ID, r.setting)) || 0;
+/* -------------------------------------------- */
+/*  Pay                                         */
+/* -------------------------------------------- */
+
+export function getRankWage(rankId) {
+  return getRank(rankId)?.wage ?? 0;
 }
 
 /** The wage actually paid: manual override if set, otherwise the rank's default. */
@@ -112,6 +82,95 @@ export function computePay(member) {
     yearly: round2(net * cfg.daysPerYear),
     maxLoan: round2(base * cfg.daysPerMonth * cfg.loanMonths)
   };
+}
+
+/* -------------------------------------------- */
+/*  Army strength                               */
+/* -------------------------------------------- */
+
+/**
+ * How many soldiers a unit contains.
+ *
+ * A squad counts the soldiers actually named in it; when none have been
+ * recorded it falls back to the configured squad size, so a freshly generated
+ * army still reports a realistic strength. Every level above a squad is the
+ * sum of its children, which is what makes the figure roll all the way up to
+ * the army itself.
+ *
+ * Officers are counted separately — they lead the soldiers rather than
+ * padding the headcount.
+ */
+export function unitStrength(unit, depth) {
+  const level = LEVELS[depth];
+  if (!level?.childKey) {
+    const named = (unit.members ?? []).length;
+    return named || soldiersPerSquad();
+  }
+  return (unit[level.childKey] ?? []).reduce((sum, child) => sum + unitStrength(child, depth + 1), 0);
+}
+
+/** How many officers sit at this unit and every unit beneath it. */
+export function officerCount(unit, depth) {
+  const level = LEVELS[depth];
+  const own = (unit.officers ?? []).length;
+  if (!level?.childKey) return own;
+  return (unit[level.childKey] ?? []).reduce((sum, child) => sum + officerCount(child, depth + 1), own);
+}
+
+/* -------------------------------------------- */
+/*  Army generation                             */
+/* -------------------------------------------- */
+
+/** 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11 -> "11th" … */
+export function ordinal(n) {
+  const suffixes = ["th", "st", "nd", "rd"];
+  const remainder = n % 100;
+  return `${n}${suffixes[(remainder - 20) % 10] ?? suffixes[remainder] ?? suffixes[0]}`;
+}
+
+function makeOfficer(title) {
+  return { id: foundry.utils.randomID(), title: title ?? "", name: "", notes: "" };
+}
+
+/**
+ * Build a complete army from the configured counts, naming each unit by its
+ * ordinal position ("1st Squad", "2nd Squad", …). Squads are left without
+ * named soldiers so their strength comes from the squad-size setting; the
+ * players can fill in real names as they meet them.
+ */
+export function buildStructure() {
+  const counts = getCounts();
+  const titles = getOfficerTitles();
+  const withOfficers = includeOfficers();
+  const unitName = (index, type) => game.i18n.format("ARMY.Generate.unitName", {
+    ordinal: ordinal(index),
+    type: game.i18n.localize(`ARMY.Unit.${type}`)
+  });
+
+  const make = (type, index) => {
+    const level = LEVELS[LEVELS.findIndex((l) => l.type === type)];
+    const unit = {
+      id: foundry.utils.randomID(),
+      name: index === null ? "" : unitName(index, type),
+      officers: withOfficers ? [makeOfficer(titles[type])] : []
+    };
+    if (level.childKey) {
+      const perParent = {
+        hosts: counts.hostsPerArmy,
+        companies: counts.companiesPerHost,
+        cohorts: counts.cohortsPerCompany,
+        squads: counts.squadsPerCohort
+      }[level.childKey] ?? 0;
+      unit[level.childKey] = Array.from({ length: perParent }, (_, i) => make(level.childType, i + 1));
+    } else {
+      unit.members = [];
+    }
+    return unit;
+  };
+
+  const army = make("army", null);
+  army.notes = "";
+  return { army };
 }
 
 /* -------------------------------------------- */
@@ -381,6 +440,7 @@ export async function advanceDay(days = 1) {
     <div class="at-payday">
       <h3><i class="fa-solid fa-coins"></i> ${header}</h3>
       ${rows.length ? `
+      <div class="at-payday-scroll">
       <table>
         <thead>
           <tr>
@@ -394,6 +454,7 @@ export async function advanceDay(days = 1) {
         </thead>
         <tbody>${body}</tbody>
       </table>
+      </div>
       <p class="at-currency-note">${game.i18n.format("ARMY.Payday.currencyNote", { currency: esc(cfg.currency) })}</p>
       ` : `<p>${loc("ARMY.Payday.empty")}</p>`}
     </div>`;

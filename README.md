@@ -45,11 +45,18 @@ The fast-forward button next to it advances **multiple days at once** (e.g. skip
 
 ### Army Structure
 
-A collapsible hierarchy — **Host → Company → Cohort → Squad** — that anyone at the table can edit:
+A collapsible hierarchy — **Army → Host → Company → Cohort → Squad** — that anyone at the table can edit:
 
 - Name each unit and add sub-units with the **+** button on its header.
 - Squads hold a roster of named characters with a rank/role and free-text notes, so players can record the NPCs they serve alongside.
+- The **Army** sits at the root of the tree and carries a free-text notes field for campaign notes and standing orders.
 - Collapsed units show a summary count, keeping big armies readable.
+
+**Officers** (on by default, toggleable): every unit gets an officer slot, and you can add as many more as a unit needs. Default titles per level — General for the army, Helm for a host, Captain for a company, Lieutenant for a cohort, Sergeant for a squad — are all editable, and any individual officer can be retitled afterwards.
+
+**Strength** rolls up the tree. A squad counts the soldiers actually named in it, or falls back to the configured squad size when none have been recorded — so every cohort, company, host and the army itself shows a running headcount even before you name a single soldier. Officers are counted separately rather than padding the figure.
+
+**Generate Army** builds the whole hierarchy in one click from the configured counts, naming units by position (1st Squad, 2nd Squad, …). It keeps the army's own name and notes and replaces the structure beneath.
 
 Player edits are relayed through the GM's client, so a GM must be connected for changes to save.
 
@@ -86,14 +93,25 @@ Then restart Foundry, and enable **Army Tracker** under *Game Settings → Manag
 
 ### Option 2 — Manifest URL (needs a release first)
 
-Push a version tag and the included GitHub Action builds the release assets:
+A release has to exist before this URL resolves. The included GitHub Action builds one, and you can run it **entirely from the browser**:
+
+> **Actions** tab → **Release Module** → **Run workflow** → enter `0.1.0` → **Run workflow**
+
+No tag needed beforehand — the workflow creates the tag itself at the commit it runs against.
+
+If you prefer the command line, pushing a version tag triggers the same workflow:
 
 ```bash
 git tag v0.1.0
-git push origin v0.1.0
+git push origin v0.1.0     # a plain `git push` does NOT send tags
 ```
 
-Once the action finishes, install in Foundry via *Add-on Modules → Install Module → Manifest URL*:
+Two things that quietly produce no release:
+
+- `git tag v0.1.0` on its own only creates the tag **locally**. It has to be pushed explicitly, as above.
+- In the Releases UI, **Save draft** does not create the tag. Only **Publish release** does.
+
+Once the run finishes green, install in Foundry via *Add-on Modules → Install Module → Manifest URL*:
 
 ```
 https://github.com/Dingus17/foundry-army-tracker/releases/latest/download/module.json
@@ -103,16 +121,22 @@ This path also gives you update notifications in Foundry when you tag future ver
 
 ## Settings
 
-All settings are world-scoped (Configure Settings → Army Tracker):
+All settings are world-scoped and GM-only. Simple values live in *Configure Settings → Army Tracker*:
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| Daily wage per rank | 1 / 2 / 3 / 5 / 8 | Soldier → Captain |
 | Days per week | 7 | Weekly salary calculation |
 | Days per month | 30 | Monthly salary and loan cap |
 | Days per year | 360 | Yearly salary calculation |
 | Loan cap | 6 months | Of the member's *base* (pre-deduction) salary |
-| Currency label | gp | Purely cosmetic — use whatever fits your setting |
+| Currency label | gp | Cosmetic; PF2e transfers still treat vault amounts as gold |
+
+Anything that's a list sits behind the **Configure Army Tracker** button in that same panel (also reachable from the Army Structure tab):
+
+- **Ranks & daily pay** — add, rename, reorder and delete ranks, each with its own default daily wage. The defaults are Soldier / Corporal / Sergeant / Lieutenant / Captain at 1 / 2 / 3 / 5 / 8, but nothing is fixed. Deleting a rank someone currently holds warns you first, and those members show as holding a removed rank rather than being silently re-banded.
+- **Default deductions** — the lines each new recruit starts with (Food and Camp maintenance by default). Existing members are untouched when you change these.
+- **Officers** — the include-officers toggle and the default title for each level.
+- **Army generation** — how many hosts per army, companies per host, cohorts per company, squads per cohort and soldiers per squad, with a live projected total strength.
 
 ## Notes
 

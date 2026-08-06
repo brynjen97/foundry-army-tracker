@@ -1,7 +1,11 @@
 name: Release Module
 
-# Publishes a Foundry-installable release whenever a version tag is pushed:
-#   git tag v0.1.0 && git push origin v0.1.0
+# Publishes a Foundry-installable release. Two ways to run it:
+#
+#   1. Actions tab -> Release Module -> Run workflow -> enter e.g. 0.1.0.
+#      No tag needed up front: the release step creates the tag for you.
+#   2. Push a version tag:  git tag v0.1.0 && git push origin v0.1.0
+#      (a plain `git push` does NOT send tags)
 #
 # Produces two assets Foundry needs:
 #   module.json — the manifest (also used for update checks)
@@ -11,6 +15,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 0.1.0 (leading v optional)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -21,12 +30,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Derive version from tag
+      - name: Resolve version
         id: version
+        # Inputs go through the environment rather than direct ${{ }} expansion
+        # so a crafted version string cannot inject shell.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="${INPUT_VERSION#v}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          # Guard against a manual run producing a junk release named after a branch.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$'; then
+            echo "::error::Version must look like 1.2.3 (got '${VERSION}')"
+            exit 1
+          fi
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Releasing v${VERSION}"
 
       - name: Stamp version and asset URLs into module.json
         env:
@@ -59,6 +83,10 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          # Creates the tag at this commit when it does not already exist,
+          # so a manual run needs no tag push.
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: ${{ steps.version.outputs.tag }}
           files: |
             module.json

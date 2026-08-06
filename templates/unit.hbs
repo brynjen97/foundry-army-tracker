@@ -1,10 +1,13 @@
-<div class="at-unit at-depth-{{depth}} {{#if collapsed}}collapsed{{/if}}">
+<div class="at-unit at-depth-{{depth}} {{#if collapsed}}collapsed{{/if}} {{#if isRoot}}at-root{{/if}}">
   <div class="at-unit-header">
     <button type="button" class="at-icon-btn" data-action="toggleUnit" data-id="{{id}}">
       <i class="fa-solid fa-chevron-{{#if collapsed}}right{{else}}down{{/if}}"></i>
     </button>
     <span class="at-unit-type">{{typeLabel}}</span>
     <input type="text" class="at-unit-name" value="{{name}}" placeholder="{{namePlaceholder}}" data-path="{{path}}.name">
+    <span class="at-unit-strength" data-tooltip="{{localize "ARMY.Unit.strengthTooltip"}}">
+      <i class="fa-solid fa-users"></i> {{strength}}
+    </span>
     <span class="at-unit-summary">{{summary}}</span>
     <span class="at-unit-actions">
       {{#if isSquad}}
@@ -18,15 +21,61 @@
         <i class="fa-solid fa-plus"></i>
       </button>
       {{/if}}
+      {{#unless isRoot}}
       <button type="button" class="at-icon-btn danger" data-action="removeUnit" data-array-path="{{arrayPath}}"
               data-index="{{index}}" data-name="{{name}}" data-type-label="{{typeLabel}}"
               data-tooltip="{{localize "ARMY.RemoveUnit"}}">
         <i class="fa-solid fa-trash"></i>
       </button>
+      {{/unless}}
     </span>
   </div>
+
   {{#unless collapsed}}
   <div class="at-unit-children">
+
+    {{#if isRoot}}
+    <div class="at-army-notes">
+      <label>{{localize "ARMY.Unit.notesLabel"}}</label>
+      <textarea rows="3" placeholder="{{localize "ARMY.Unit.notesPh"}}" data-path="{{path}}.notes">{{notes}}</textarea>
+    </div>
+    {{/if}}
+
+    {{#if @root.officersEnabled}}
+    <div class="at-officers">
+      <div class="at-officers-head">
+        <span class="at-officers-title"><i class="fa-solid fa-user-tie"></i> {{localize "ARMY.Officers"}}</span>
+        <button type="button" class="at-icon-btn" data-action="addOfficer" data-array-path="{{officersPath}}"
+                data-title="{{defaultOfficerTitle}}" data-parent-id="{{id}}"
+                data-tooltip="{{localize "ARMY.AddOfficer"}}">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+      </div>
+      {{#if officers.length}}
+      <table class="at-members">
+        <tbody>
+          {{#each officers}}
+          <tr>
+            <td class="at-m-title"><input type="text" value="{{title}}" placeholder="{{localize "ARMY.Member.titlePh"}}" data-path="{{path}}.title"></td>
+            <td class="at-m-name"><input type="text" value="{{name}}" placeholder="{{localize "ARMY.Member.namePh"}}" data-path="{{path}}.name"></td>
+            <td class="at-m-notes"><input type="text" value="{{notes}}" placeholder="{{localize "ARMY.Member.notesPh"}}" data-path="{{path}}.notes"></td>
+            <td class="at-m-actions">
+              <button type="button" class="at-icon-btn danger" data-action="removeOfficer"
+                      data-array-path="{{arrayPath}}" data-index="{{index}}"
+                      data-tooltip="{{localize "ARMY.RemoveOfficer"}}">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      {{else}}
+      <p class="at-empty">{{localize "ARMY.NoOfficers"}}</p>
+      {{/if}}
+    </div>
+    {{/if}}
+
     {{#if isSquad}}
       {{#if members.length}}
       <table class="at-members">
@@ -56,7 +105,7 @@
         </tbody>
       </table>
       {{else}}
-      <p class="at-empty">{{localize "ARMY.SquadEmpty"}}</p>
+      <p class="at-empty">{{localize "ARMY.SquadImplied" count=strength}}</p>
       {{/if}}
     {{else}}
       {{#each children}}

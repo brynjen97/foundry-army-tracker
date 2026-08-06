@@ -1,5 +1,20 @@
-import { MODULE_ID, RANKS, LEVELS } from "./constants.mjs";
-import { advanceDay, applyOps, computePay, fmt, getArmyData, getConfig, getRankWage, requestTransfer, round2 } from "./data.mjs";
+import { MODULE_ID, LEVELS } from "./constants.mjs";
+import {
+  advanceDay,
+  applyOps,
+  buildStructure,
+  computePay,
+  fmt,
+  getArmyData,
+  getConfig,
+  getRankWage,
+  officerCount,
+  requestTransfer,
+  round2,
+  unitStrength
+} from "./data.mjs";
+import { getCounts, getDeductionTemplate, getOfficerTitles, getRanks, includeOfficers } from "./settings.mjs";
+import { ArmyConfigApp } from "./config-app.mjs";
 import { carriedGold, coinLabel } from "./currency.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
@@ -43,7 +58,11 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       withdrawVault: ArmyTrackerApp._onWithdrawVault,
       addUnit: ArmyTrackerApp._onAddUnit,
       removeUnit: ArmyTrackerApp._onRemoveUnit,
-      toggleUnit: ArmyTrackerApp._onToggleUnit
+      toggleUnit: ArmyTrackerApp._onToggleUnit,
+      addOfficer: ArmyTrackerApp._onAddOfficer,
+      removeOfficer: ArmyTrackerApp._onRemoveOfficer,
+      generateArmy: ArmyTrackerApp._onGenerateArmy,
+      openConfig: ArmyTrackerApp._onOpenConfig
     }
   };
 
@@ -63,9 +82,15 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const cfg = getConfig();
     const isGM = game.user.isGM;
 
-    const rankOptions = Object.fromEntries(
-      Object.entries(RANKS).map(([id, rank]) => [id, game.i18n.localize(rank.label)])
-    );
+    const ranks = getRanks();
+    const rankOptions = Object.fromEntries(ranks.map((r) => [r.id, r.label]));
+    // Keep a member on a rank that was deleted from the config visible as such,
+    // rather than silently re-banding them under whichever rank sorts first.
+    for (const member of data.roster) {
+      if (member.rank && !rankOptions[member.rank]) {
+        rankOptions[member.rank] = game.i18n.format("ARMY.UnknownRank", { id: member.rank });
+      }
+    }
 
     const roster = data.roster.map((member, index) => {
       const actor = member.actorId ? game.actors.get(member.actorId) : null;
@@ -115,7 +140,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return acc;
     }, { net: 0, debt: 0, vault: 0 });
 
-    const hosts = data.structure.hosts.map((host, i) => this.#buildNode(host, "structure.hosts", i, 0));
+    const army = this.#buildNode(data.structure.army, null, null, 0);
 
     return {
       isGM,
@@ -137,28 +162,54 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         debtF: fmt(totals.debt),
         vaultF: fmt(totals.vault)
       },
-      hosts
+      army,
+      officersEnabled: includeOfficers()
     };
   }
 
-  /** Build a display node for one unit of the army structure (recursive). */
+  /**
+   * Build a display node for one unit of the army structure (recursive).
+   * The army sits at the root of the tree, so it has no parent array and
+   * passes null for arrayPath/index — that is what marks it unremovable.
+   */
   #buildNode(unit, arrayPath, index, depth) {
     const level = LEVELS[depth];
-    const path = `${arrayPath}.${index}`;
+    const isRoot = arrayPath === null;
+    const path = isRoot ? "structure.army" : `${arrayPath}.${index}`;
+    const officersOn = includeOfficers();
+    const strength = unitStrength(unit, depth);
+
     const node = {
       id: unit.id,
       path,
       arrayPath,
       index,
       depth,
+      isRoot,
       name: unit.name ?? "",
+      notes: unit.notes ?? "",
       typeLabel: game.i18n.localize(`ARMY.Unit.${level.type}`),
       namePlaceholder: game.i18n.format("ARMY.Unit.namePh", {
         type: game.i18n.localize(`ARMY.Unit.${level.type}`)
       }),
       collapsed: this.#collapsedUnits.has(unit.id),
-      isSquad: !level.childKey
+      isSquad: !level.childKey,
+      strength,
+      strengthLabel: game.i18n.format("ARMY.Unit.strength", { count: strength })
     };
+
+    if (officersOn) {
+      const officers = unit.officers ?? [];
+      node.officersPath = `${path}.officers`;
+      node.defaultOfficerTitle = getOfficerTitles()[level.type];
+      node.officers = officers.map((o, i) => ({
+        ...o,
+        path: `${node.officersPath}.${i}`,
+        arrayPath: node.officersPath,
+        index: i
+      }));
+      node.officerTotal = officerCount(unit, depth);
+    }
 
     if (level.childKey) {
       const children = unit[level.childKey] ?? [];
@@ -177,7 +228,11 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         arrayPath: node.membersPath,
         index: i
       }));
-      node.summary = `${members.length} ${game.i18n.localize("ARMY.Unit.count.members")}`;
+      // With no soldiers named, the squad still musters at its configured size.
+      node.impliedStrength = !members.length;
+      node.summary = members.length
+        ? `${members.length} ${game.i18n.localize("ARMY.Unit.count.members")}`
+        : game.i18n.format("ARMY.Unit.impliedStrength", { count: strength });
     }
     return node;
   }
@@ -332,12 +387,13 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       id: foundry.utils.randomID(),
       actorId: actor?.id ?? null,
       name: result.customName || actor?.name || game.i18n.localize("ARMY.UnnamedMember"),
-      rank: "soldier",
+      rank: getRanks()[0]?.id ?? "soldier",
       wageOverride: null,
-      deductions: [
-        { id: foundry.utils.randomID(), label: game.i18n.localize("ARMY.DefaultDeduction.food"), amount: 0.2 },
-        { id: foundry.utils.randomID(), label: game.i18n.localize("ARMY.DefaultDeduction.upkeep"), amount: 0.1 }
-      ],
+      deductions: getDeductionTemplate().map((d) => ({
+        id: foundry.utils.randomID(),
+        label: d.label,
+        amount: d.amount
+      })),
       debt: 0,
       vault: 0
     };
@@ -517,10 +573,10 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static async _onAddUnit(event, target) {
     const { arrayPath, unitType, parentId } = target.dataset;
     const makers = {
-      host: () => ({ id: foundry.utils.randomID(), name: "", companies: [] }),
-      company: () => ({ id: foundry.utils.randomID(), name: "", cohorts: [] }),
-      cohort: () => ({ id: foundry.utils.randomID(), name: "", squads: [] }),
-      squad: () => ({ id: foundry.utils.randomID(), name: "", members: [] }),
+      host: () => ({ id: foundry.utils.randomID(), name: "", officers: [], companies: [] }),
+      company: () => ({ id: foundry.utils.randomID(), name: "", officers: [], cohorts: [] }),
+      cohort: () => ({ id: foundry.utils.randomID(), name: "", officers: [], squads: [] }),
+      squad: () => ({ id: foundry.utils.randomID(), name: "", officers: [], members: [] }),
       member: () => ({ id: foundry.utils.randomID(), name: "", title: "", notes: "" })
     };
     const make = makers[unitType];
@@ -543,5 +599,74 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (!confirmed) return;
     }
     await applyOps([{ action: "remove", path: arrayPath, index }]);
+  }
+
+  /* -------------------------------------------- */
+  /*  Actions: officers                           */
+  /* -------------------------------------------- */
+
+  static async _onAddOfficer(event, target) {
+    const { arrayPath, title, parentId } = target.dataset;
+    if (!arrayPath) return;
+    if (parentId) this.#collapsedUnits.delete(parentId);
+    await applyOps([{
+      action: "push",
+      path: arrayPath,
+      value: { id: foundry.utils.randomID(), title: title ?? "", name: "", notes: "" }
+    }]);
+  }
+
+  static async _onRemoveOfficer(event, target) {
+    await applyOps([{
+      action: "remove",
+      path: target.dataset.arrayPath,
+      index: Number(target.dataset.index)
+    }]);
+  }
+
+  /* -------------------------------------------- */
+  /*  Actions: army generation                    */
+  /* -------------------------------------------- */
+
+  static async _onGenerateArmy() {
+    if (!game.user.isGM) return;
+    const counts = getCounts();
+    const data = getArmyData();
+    const existing = data.structure.army;
+    const hasContent = (existing.hosts ?? []).length
+      || (existing.officers ?? []).length
+      || existing.name
+      || existing.notes;
+
+    const preview = buildStructure();
+    const total = unitStrength(preview.army, 0);
+
+    const confirmed = await DialogV2.confirm({
+      window: { title: game.i18n.localize("ARMY.Generate.title") },
+      content: `
+        <p>${game.i18n.format("ARMY.Generate.summary", {
+          hosts: counts.hostsPerArmy,
+          companies: counts.companiesPerHost,
+          cohorts: counts.cohortsPerCompany,
+          squads: counts.squadsPerCohort,
+          soldiers: counts.soldiersPerSquad
+        })}</p>
+        <p><strong>${game.i18n.format("ARMY.Generate.total", { count: total })}</strong></p>
+        ${hasContent ? `<p class="notification warning">${game.i18n.localize("ARMY.Generate.overwrite")}</p>` : ""}`,
+      rejectClose: false,
+      modal: true
+    });
+    if (!confirmed) return;
+
+    // Keep the army's own name and notes; only the hierarchy is rebuilt.
+    const built = buildStructure();
+    built.army.name = existing.name || built.army.name;
+    built.army.notes = existing.notes ?? "";
+    await applyOps([{ action: "set", path: "structure.army", value: built.army }]);
+    ui.notifications.info(game.i18n.format("ARMY.Generate.done", { count: total }));
+  }
+
+  static _onOpenConfig() {
+    new ArmyConfigApp().render({ force: true });
   }
 }
