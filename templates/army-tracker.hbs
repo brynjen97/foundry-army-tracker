@@ -137,7 +137,6 @@
                   <h4><i class="fa-solid fa-scale-balanced"></i> {{localize "ARMY.Finances"}}</h4>
                   <div class="at-line"><span>{{localize "ARMY.Col.debt"}}</span><span class="{{#if debt}}at-neg{{/if}}">{{debtF}} {{@root.currency}}</span></div>
                   <div class="at-line"><span>{{localize "ARMY.MaxLoan" months=@root.loanMonths}}</span><span>{{pay.maxLoanF}} {{@root.currency}}</span></div>
-                  <div class="at-line"><span>{{localize "ARMY.Col.vault"}}</span><span>{{vaultF}} {{@root.currency}}</span></div>
                   {{#if @root.isGM}}
                   <div class="at-btn-row">
                     <button type="button" data-action="grantLoan" data-index="{{index}}" data-name="{{name}}">
@@ -146,6 +145,27 @@
                     <button type="button" data-action="repayDebt" data-index="{{index}}"
                             data-tooltip="{{localize "ARMY.RepayDebtTooltip"}}">
                       <i class="fa-solid fa-rotate-left"></i> {{localize "ARMY.RepayDebt"}}
+                    </button>
+                  </div>
+                  {{/if}}
+                </div>
+
+                <div class="at-panel">
+                  <h4><i class="fa-solid fa-vault"></i> {{localize "ARMY.Col.vault"}}</h4>
+                  {{#if carriedF}}
+                  <div class="at-line"
+                       data-tooltip="{{carriedCoins}}"><span>{{localize "ARMY.Transfer.carriedLabel"}}</span><span>{{carriedF}} {{@root.currency}}</span></div>
+                  {{/if}}
+                  <div class="at-line at-total"><span>{{localize "ARMY.Transfer.storedLabel"}}</span><span>{{vaultF}} {{@root.currency}}</span></div>
+                  {{#if canTransact}}
+                  <div class="at-btn-row">
+                    <button type="button" data-action="depositVault" data-id="{{id}}"
+                            data-tooltip="{{localize "ARMY.Transfer.depositTooltip"}}">
+                      <i class="fa-solid fa-arrow-down-to-bracket"></i> {{localize "ARMY.Transfer.deposit"}}
+                    </button>
+                    <button type="button" data-action="withdrawVault" data-id="{{id}}"
+                            data-tooltip="{{localize "ARMY.Transfer.withdrawTooltip"}}">
+                      <i class="fa-solid fa-arrow-up-from-bracket"></i> {{localize "ARMY.Transfer.withdraw"}}
                     </button>
                   </div>
                   {{/if}}

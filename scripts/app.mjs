@@ -1,5 +1,6 @@
 import { MODULE_ID, RANKS, LEVELS } from "./constants.mjs";
-import { advanceDay, applyOps, computePay, fmt, getArmyData, getConfig, getRankWage, round2 } from "./data.mjs";
+import { advanceDay, applyOps, computePay, fmt, getArmyData, getConfig, getRankWage, requestTransfer, round2 } from "./data.mjs";
+import { carriedGold, coinLabel } from "./currency.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
 
@@ -38,6 +39,8 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       removeDeduction: ArmyTrackerApp._onRemoveDeduction,
       grantLoan: ArmyTrackerApp._onGrantLoan,
       repayDebt: ArmyTrackerApp._onRepayDebt,
+      depositVault: ArmyTrackerApp._onDepositVault,
+      withdrawVault: ArmyTrackerApp._onWithdrawVault,
       addUnit: ArmyTrackerApp._onAddUnit,
       removeUnit: ArmyTrackerApp._onRemoveUnit,
       toggleUnit: ArmyTrackerApp._onToggleUnit
@@ -68,10 +71,14 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const actor = member.actorId ? game.actors.get(member.actorId) : null;
       const pay = computePay(member);
       const path = `roster.${index}`;
+      const carried = carriedGold(actor);
       return {
         id: member.id,
         index,
         path,
+        canTransact: isGM || !!actor?.isOwner,
+        carriedF: carried === null ? null : fmt(carried),
+        carriedCoins: carried === null ? null : coinLabel(carried),
         name: actor?.name ?? member.name ?? game.i18n.localize("ARMY.UnnamedMember"),
         img: actor?.img ?? null,
         rank: member.rank,
@@ -428,6 +435,79 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       { action: "set", path: `roster.${index}.debt`, value: round2(debt - payment) },
       { action: "set", path: `roster.${index}.vault`, value: round2(vault - payment) }
     ]);
+  }
+
+  /* -------------------------------------------- */
+  /*  Actions: vault deposits & withdrawals       */
+  /* -------------------------------------------- */
+
+  static async _onDepositVault(event, target) {
+    await ArmyTrackerApp.#promptTransfer(target.dataset.id, "deposit");
+  }
+
+  static async _onWithdrawVault(event, target) {
+    await ArmyTrackerApp.#promptTransfer(target.dataset.id, "withdraw");
+  }
+
+  /**
+   * Ask how much to move between a character's purse and the camp vault.
+   * The available figure is a convenience only — the GM re-validates the
+   * request before any coin or vault balance actually changes.
+   */
+  static async #promptTransfer(memberId, direction) {
+    const data = getArmyData();
+    const member = data.roster.find((m) => m.id === memberId);
+    if (!member) return;
+
+    const cfg = getConfig();
+    const actor = member.actorId ? game.actors.get(member.actorId) : null;
+    const vault = round2(member.vault ?? 0);
+    const carried = carriedGold(actor);
+    const deposit = direction === "deposit";
+
+    // Only cap the field when we know the real figure on this side of the move.
+    const max = deposit ? carried : vault;
+
+    if (!deposit && vault <= 0) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Transfer.EmptyVault"));
+      return;
+    }
+    if (deposit && carried !== null && carried <= 0) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Transfer.NoCoin"));
+      return;
+    }
+
+    const available = deposit
+      ? game.i18n.format("ARMY.Transfer.carried", { amount: fmt(carried ?? 0), coins: coinLabel(carried ?? 0) })
+      : game.i18n.format("ARMY.Transfer.inVault", { amount: fmt(vault), currency: cfg.currency });
+
+    const note = max === null
+      ? `<p class="notification warning">${game.i18n.localize("ARMY.Transfer.ledgerOnly")}</p>`
+      : "";
+
+    const result = await DialogV2.prompt({
+      window: { title: game.i18n.localize(deposit ? "ARMY.Transfer.deposit" : "ARMY.Transfer.withdraw") },
+      content: `
+        <p>${game.i18n.localize(deposit ? "ARMY.Transfer.depositPrompt" : "ARMY.Transfer.withdrawPrompt")}</p>
+        ${max === null ? "" : `<p><strong>${available}</strong></p>`}
+        ${note}
+        <div class="form-group">
+          <label>${game.i18n.format("ARMY.Transfer.amountLabel", { currency: cfg.currency })}</label>
+          <input type="number" name="amount" step="0.01" min="0"
+                 ${max === null ? "" : `max="${max}" value="${max}"`} autofocus>
+        </div>`,
+      rejectClose: false,
+      ok: {
+        label: game.i18n.localize(deposit ? "ARMY.Transfer.deposit" : "ARMY.Transfer.withdraw"),
+        icon: deposit ? "fa-solid fa-arrow-down-to-bracket" : "fa-solid fa-arrow-up-from-bracket",
+        callback: (event, button) => Number(button.form.elements.amount.value)
+      }
+    });
+    if (result === null || result === undefined || Number.isNaN(result) || result <= 0) return;
+
+    const amount = round2(max === null ? result : Math.min(result, max));
+    if (amount <= 0) return;
+    await requestTransfer({ memberId, direction, amount });
   }
 
   /* -------------------------------------------- */

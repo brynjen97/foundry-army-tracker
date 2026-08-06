@@ -1,13 +1,10 @@
 import { MODULE_ID, RANKS, SETTING_DATA } from "./constants.mjs";
+import { round2, fmt } from "./util.mjs";
+import { giveToActor, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
+
+export { round2, fmt };
 
 export const DEFAULT_DATA = { day: 0, roster: [], structure: { hosts: [] } };
-
-export const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
-
-export const fmt = (v) => {
-  const n = round2(v);
-  return Number.isInteger(n) ? String(n) : n.toFixed(2);
-};
 
 /* -------------------------------------------- */
 /*  Settings                                    */
@@ -181,9 +178,126 @@ async function applyOpsAsGM(ops, userId) {
 
 /** Socket handler: only the active GM applies relayed player updates. */
 export function onSocketMessage(message) {
-  if (message?.type !== "ops") return;
-  if (!game.user.isGM || game.user !== game.users.activeGM) return;
-  applyOpsAsGM(message.ops ?? [], message.userId);
+  switch (message?.type) {
+    case "ops":
+      if (!game.user.isGM || game.user !== game.users.activeGM) return;
+      applyOpsAsGM(message.ops ?? [], message.userId);
+      return;
+    case "transfer":
+      if (!game.user.isGM || game.user !== game.users.activeGM) return;
+      performTransfer(message).then((result) => {
+        game.socket.emit(`module.${MODULE_ID}`, { type: "transferResult", userId: message.userId, result });
+      });
+      return;
+    case "transferResult":
+      if (message.userId !== game.user.id) return;
+      reportTransfer(message.result);
+      return;
+  }
+}
+
+/* -------------------------------------------- */
+/*  Vault deposits & withdrawals                */
+/* -------------------------------------------- */
+
+/**
+ * Move money between a character's inventory and their camp vault.
+ * Always executed by the active GM so the coin change and the vault change
+ * happen together, and so a player cannot touch someone else's purse.
+ * @returns {Promise<object>} {ok, error?, direction, amount, vault, name}
+ */
+export async function performTransfer({ memberId, direction, amount, userId }) {
+  const data = getArmyData();
+  const member = data.roster.find((m) => m.id === memberId);
+  if (!member) return { ok: false, error: "ARMY.Transfer.NoMember" };
+
+  const user = game.users.get(userId);
+  if (!user) return { ok: false, error: "ARMY.Transfer.NoUser" };
+
+  const actor = member.actorId ? game.actors.get(member.actorId) : null;
+
+  // Players may only move their own character's money.
+  if (!user.isGM && !actor?.testUserPermission(user, "OWNER")) {
+    return { ok: false, error: "ARMY.Transfer.NotOwner" };
+  }
+
+  amount = round2(amount);
+  if (!(amount > 0)) return { ok: false, error: "ARMY.Transfer.BadAmount" };
+
+  const vault = round2(member.vault ?? 0);
+  const linked = supportsInventoryTransfer(actor);
+  const name = memberName(member);
+
+  if (direction === "deposit") {
+    // Take the coin first: if the character cannot cover it, nothing is credited.
+    if (linked && !(await takeFromActor(actor, amount))) {
+      return { ok: false, error: "ARMY.Transfer.Insufficient" };
+    }
+    member.vault = round2(vault + amount);
+  } else {
+    if (amount > vault) return { ok: false, error: "ARMY.Transfer.VaultShort" };
+    // Hand over the coin first: if the items cannot be created, the vault is untouched.
+    if (linked && !(await giveToActor(actor, amount))) {
+      return { ok: false, error: "ARMY.Transfer.Failed" };
+    }
+    member.vault = round2(vault - amount);
+  }
+
+  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+
+  const cfg = getConfig();
+  await ChatMessage.create({
+    content: `
+      <div class="at-payday">
+        <h3><i class="fa-solid fa-vault"></i> ${game.i18n.localize("ARMY.Transfer.chatHeader")}</h3>
+        <p>${game.i18n.format(`ARMY.Transfer.chat.${direction}`, {
+          name: Handlebars.escapeExpression(name),
+          amount: fmt(amount),
+          currency: Handlebars.escapeExpression(cfg.currency)
+        })}</p>
+        <p class="at-currency-note">${game.i18n.format("ARMY.Transfer.chatBalance", {
+          vault: fmt(member.vault),
+          currency: Handlebars.escapeExpression(cfg.currency)
+        })}</p>
+      </div>`,
+    speaker: { alias: game.i18n.localize("ARMY.Payday.speaker") }
+  });
+
+  return { ok: true, direction, amount, vault: member.vault, name, linked };
+}
+
+/** Show the outcome of a transfer to the user who requested it. */
+export function reportTransfer(result) {
+  if (!result) return;
+  const cfg = getConfig();
+  if (!result.ok) {
+    ui.notifications.warn(game.i18n.localize(result.error ?? "ARMY.Transfer.Failed"));
+    return;
+  }
+  ui.notifications.info(game.i18n.format(`ARMY.Transfer.done.${result.direction}`, {
+    amount: fmt(result.amount),
+    currency: cfg.currency,
+    vault: fmt(result.vault)
+  }));
+}
+
+/** Request a transfer: GMs run it directly, players relay it to the active GM. */
+export async function requestTransfer({ memberId, direction, amount }) {
+  if (game.user.isGM) {
+    reportTransfer(await performTransfer({ memberId, direction, amount, userId: game.user.id }));
+    return;
+  }
+  if (!game.users.activeGM) {
+    ui.notifications.warn(game.i18n.localize("ARMY.NoGM"));
+    return;
+  }
+  game.socket.emit(`module.${MODULE_ID}`, {
+    type: "transfer",
+    memberId,
+    direction,
+    amount,
+    userId: game.user.id
+  });
 }
 
 /* -------------------------------------------- */

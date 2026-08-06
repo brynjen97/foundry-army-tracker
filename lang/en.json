@@ -60,6 +60,39 @@
     "RepayDebt": "Repay from Vault",
     "RepayDebtTooltip": "Move money from this member's camp vault stash to pay down their debt.",
     "NothingToRepay": "Nothing to repay — either there is no debt or the vault is empty.",
+    "Transfer": {
+      "deposit": "Deposit",
+      "withdraw": "Withdraw",
+      "depositTooltip": "Move coin from this character's inventory into the camp vault.",
+      "withdrawTooltip": "Take coin out of the camp vault and back into this character's inventory.",
+      "depositPrompt": "How much should be moved from this character's purse into the camp vault?",
+      "withdrawPrompt": "How much should be taken out of the camp vault and handed back to the character?",
+      "amountLabel": "Amount ({currency})",
+      "carried": "Carried: {amount} ({coins})",
+      "inVault": "In the vault: {amount} {currency}",
+      "carriedLabel": "Carried by character",
+      "storedLabel": "Stored in vault",
+      "ledgerOnly": "No linked character inventory — this will only adjust the vault ledger. Move the coin on the character sheet yourself.",
+      "chatHeader": "Camp Vault",
+      "chat": {
+        "deposit": "<strong>{name}</strong> deposited {amount} {currency} into the camp vault.",
+        "withdraw": "<strong>{name}</strong> withdrew {amount} {currency} from the camp vault."
+      },
+      "chatBalance": "Vault balance: {vault} {currency}.",
+      "done": {
+        "deposit": "Deposited {amount} {currency}. Vault balance: {vault} {currency}.",
+        "withdraw": "Withdrew {amount} {currency}. Vault balance: {vault} {currency}."
+      },
+      "EmptyVault": "There is nothing in this member's vault to withdraw.",
+      "NoCoin": "This character isn't carrying any coin to deposit.",
+      "Insufficient": "This character isn't carrying enough coin to cover that deposit.",
+      "VaultShort": "The vault doesn't hold that much.",
+      "NoMember": "That roster member no longer exists.",
+      "NoUser": "Could not identify the requesting user.",
+      "NotOwner": "You can only move money for a character you own.",
+      "BadAmount": "Enter an amount greater than zero.",
+      "Failed": "The transfer could not be completed."
+    },
     "AddMember": "Add Party Member",
     "Add": "Add",
     "RemoveMember": "Remove Member",
@@ -150,7 +183,7 @@
       },
       "currency": {
         "name": "Currency Label",
-        "hint": "Shown next to all monetary amounts, e.g. gp, sp, denarii."
+        "hint": "Shown next to all monetary amounts, e.g. gp, sp, denarii. On Pathfinder 2e, vault balances are treated as gold pieces when depositing or withdrawing coin."
       }
     }
   }

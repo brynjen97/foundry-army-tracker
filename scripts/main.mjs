@@ -1,5 +1,5 @@
 import { MODULE_ID } from "./constants.mjs";
-import { registerSettings, onSocketMessage } from "./data.mjs";
+import { getArmyData, registerSettings, onSocketMessage } from "./data.mjs";
 import { ArmyTrackerApp } from "./app.mjs";
 
 Hooks.once("init", () => {
@@ -47,3 +47,14 @@ Hooks.on("updateSetting", (setting) => {
   if (!setting.key?.startsWith(`${MODULE_ID}.`)) return;
   ArmyTrackerApp.instance?.render();
 });
+
+/** Keep the "carried by character" figure current as coin moves on linked sheets. */
+for (const hook of ["createItem", "updateItem", "deleteItem"]) {
+  Hooks.on(hook, (item) => {
+    const app = ArmyTrackerApp.instance;
+    if (!app?.rendered) return;
+    const actorId = item?.parent?.id;
+    if (!actorId) return;
+    if (getArmyData().roster.some((m) => m.actorId === actorId)) app.render();
+  });
+}
