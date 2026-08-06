@@ -1,0 +1,71 @@
+<div class="at-unit at-depth-{{depth}} {{#if collapsed}}collapsed{{/if}}">
+  <div class="at-unit-header">
+    <button type="button" class="at-icon-btn" data-action="toggleUnit" data-id="{{id}}">
+      <i class="fa-solid fa-chevron-{{#if collapsed}}right{{else}}down{{/if}}"></i>
+    </button>
+    <span class="at-unit-type">{{typeLabel}}</span>
+    <input type="text" class="at-unit-name" value="{{name}}" placeholder="{{namePlaceholder}}" data-path="{{path}}.name">
+    <span class="at-unit-summary">{{summary}}</span>
+    <span class="at-unit-actions">
+      {{#if isSquad}}
+      <button type="button" class="at-icon-btn" data-action="addUnit" data-array-path="{{membersPath}}"
+              data-unit-type="member" data-parent-id="{{id}}" data-tooltip="{{addChildLabel}}">
+        <i class="fa-solid fa-user-plus"></i>
+      </button>
+      {{else}}
+      <button type="button" class="at-icon-btn" data-action="addUnit" data-array-path="{{childrenPath}}"
+              data-unit-type="{{childType}}" data-parent-id="{{id}}" data-tooltip="{{addChildLabel}}">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+      {{/if}}
+      <button type="button" class="at-icon-btn danger" data-action="removeUnit" data-array-path="{{arrayPath}}"
+              data-index="{{index}}" data-name="{{name}}" data-type-label="{{typeLabel}}"
+              data-tooltip="{{localize "ARMY.RemoveUnit"}}">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </span>
+  </div>
+  {{#unless collapsed}}
+  <div class="at-unit-children">
+    {{#if isSquad}}
+      {{#if members.length}}
+      <table class="at-members">
+        <thead>
+          <tr>
+            <th class="at-m-name">{{localize "ARMY.Member.name"}}</th>
+            <th class="at-m-title">{{localize "ARMY.Member.title"}}</th>
+            <th class="at-m-notes">{{localize "ARMY.Member.notes"}}</th>
+            <th class="at-m-actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each members}}
+          <tr>
+            <td><input type="text" value="{{name}}" placeholder="{{localize "ARMY.Member.namePh"}}" data-path="{{path}}.name"></td>
+            <td><input type="text" value="{{title}}" placeholder="{{localize "ARMY.Member.titlePh"}}" data-path="{{path}}.title"></td>
+            <td><input type="text" value="{{notes}}" placeholder="{{localize "ARMY.Member.notesPh"}}" data-path="{{path}}.notes"></td>
+            <td>
+              <button type="button" class="at-icon-btn danger" data-action="removeUnit" data-kind="member"
+                      data-array-path="{{arrayPath}}" data-index="{{index}}"
+                      data-tooltip="{{localize "ARMY.Member.remove"}}">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      {{else}}
+      <p class="at-empty">{{localize "ARMY.SquadEmpty"}}</p>
+      {{/if}}
+    {{else}}
+      {{#each children}}
+        {{> "modules/foundry-army-tracker/templates/unit.hbs"}}
+      {{/each}}
+      {{#unless children.length}}
+      <p class="at-empty">{{localize "ARMY.UnitEmpty"}}</p>
+      {{/unless}}
+    {{/if}}
+  </div>
+  {{/unless}}
+</div>
