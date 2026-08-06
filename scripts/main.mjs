@@ -1,9 +1,19 @@
 import { MODULE_ID } from "./constants.mjs";
-import { getArmyData, registerSettings, onSocketMessage } from "./data.mjs";
+import { getArmyData, registerSettings, seedDefaults, onSocketMessage } from "./data.mjs";
 import { ArmyTrackerApp } from "./app.mjs";
+import { ArmyConfigApp } from "./config-app.mjs";
 
 Hooks.once("init", () => {
   registerSettings();
+
+  game.settings.registerMenu(MODULE_ID, "configMenu", {
+    name: "ARMY.Config.menuName",
+    label: "ARMY.Config.menuLabel",
+    hint: "ARMY.Config.menuHint",
+    icon: "fa-solid fa-sliders",
+    type: ArmyConfigApp,
+    restricted: true
+  });
 
   const load = foundry.applications?.handlebars?.loadTemplates ?? loadTemplates;
   load([`modules/${MODULE_ID}/templates/unit.hbs`]);
@@ -19,12 +29,16 @@ Hooks.once("init", () => {
   });
 });
 
-Hooks.once("ready", () => {
+Hooks.once("ready", async () => {
   game.socket.on(`module.${MODULE_ID}`, onSocketMessage);
   const module = game.modules.get(MODULE_ID);
   module.api = {
-    open: () => ArmyTrackerApp.open()
+    open: () => ArmyTrackerApp.open(),
+    configure: () => new ArmyConfigApp().render({ force: true })
   };
+  // Writes the built-in ranks and deductions into settings once, so the config
+  // menu opens with something to edit instead of an empty form.
+  await seedDefaults();
 });
 
 /** Add an "Army Tracker" button to the Actors directory (works with both v12 jQuery and v13 HTMLElement hooks). */

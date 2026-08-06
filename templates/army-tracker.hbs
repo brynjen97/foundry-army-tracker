@@ -198,12 +198,19 @@
     {{else}}
     <div class="at-structure">
       <p class="at-hint">{{localize "ARMY.StructureHint"}}</p>
-      {{#each hosts}}
+      {{#if isGM}}
+      <div class="at-structure-tools">
+        <button type="button" data-action="generateArmy">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "ARMY.Generate.button"}}
+        </button>
+        <button type="button" data-action="openConfig">
+          <i class="fa-solid fa-sliders"></i> {{localize "ARMY.Config.open"}}
+        </button>
+      </div>
+      {{/if}}
+      {{#with army}}
         {{> "modules/foundry-army-tracker/templates/unit.hbs"}}
-      {{/each}}
-      <button type="button" class="at-add" data-action="addUnit" data-array-path="structure.hosts" data-unit-type="host">
-        <i class="fa-solid fa-plus"></i> {{localize "ARMY.Unit.add.host"}}
-      </button>
+      {{/with}}
     </div>
     {{/if}}
   </section>

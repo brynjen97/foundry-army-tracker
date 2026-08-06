@@ -1,0 +1,126 @@
+<div class="at-config">
+  <section class="at-config-body">
+
+    <fieldset class="at-config-section">
+      <legend><i class="fa-solid fa-medal"></i> {{localize "ARMY.Config.ranksTitle"}}</legend>
+      <p class="at-hint">{{localize "ARMY.Config.ranksHint"}}</p>
+      <table class="at-config-table">
+        <thead>
+          <tr>
+            <th>{{localize "ARMY.Config.rankLabel"}}</th>
+            <th class="at-c-num">{{localize "ARMY.Config.rankWage"}}</th>
+            <th class="at-c-tools"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each ranks}}
+          <tr>
+            <td><input type="text" value="{{label}}" data-field="rankLabel" data-index="{{index}}"
+                       placeholder="{{localize "ARMY.Config.rankLabelPh"}}"></td>
+            <td class="at-c-num"><input type="number" step="any" min="0" value="{{wage}}"
+                       data-field="rankWage" data-index="{{index}}"></td>
+            <td class="at-c-tools">
+              <button type="button" class="at-icon-btn" data-action="moveRank" data-dir="up" data-index="{{index}}"
+                      {{#if first}}disabled{{/if}} data-tooltip="{{localize "ARMY.Config.moveUp"}}">
+                <i class="fa-solid fa-chevron-up"></i>
+              </button>
+              <button type="button" class="at-icon-btn" data-action="moveRank" data-dir="down" data-index="{{index}}"
+                      {{#if last}}disabled{{/if}} data-tooltip="{{localize "ARMY.Config.moveDown"}}">
+                <i class="fa-solid fa-chevron-down"></i>
+              </button>
+              <button type="button" class="at-icon-btn danger" data-action="removeRank" data-index="{{index}}"
+                      data-tooltip="{{localize "ARMY.Config.removeRank"}}">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      <div class="at-btn-row">
+        <button type="button" data-action="addRank"><i class="fa-solid fa-plus"></i> {{localize "ARMY.Config.addRank"}}</button>
+        <button type="button" data-action="resetRanks"><i class="fa-solid fa-rotate-left"></i> {{localize "ARMY.Config.reset"}}</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="at-config-section">
+      <legend><i class="fa-solid fa-utensils"></i> {{localize "ARMY.Config.deductionsTitle"}}</legend>
+      <p class="at-hint">{{localize "ARMY.Config.deductionsHint"}}</p>
+      <table class="at-config-table">
+        <thead>
+          <tr>
+            <th>{{localize "ARMY.Config.dedLabel"}}</th>
+            <th class="at-c-num">{{localize "ARMY.Config.dedAmount"}}</th>
+            <th class="at-c-tools"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each deductions}}
+          <tr>
+            <td><input type="text" value="{{label}}" data-field="dedLabel" data-index="{{index}}"
+                       placeholder="{{localize "ARMY.DeductionPh"}}"></td>
+            <td class="at-c-num"><input type="number" step="any" min="0" value="{{amount}}"
+                       data-field="dedAmount" data-index="{{index}}"></td>
+            <td class="at-c-tools">
+              <button type="button" class="at-icon-btn danger" data-action="removeDeduction" data-index="{{index}}"
+                      data-tooltip="{{localize "ARMY.RemoveDeduction"}}">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      {{#unless deductions.length}}<p class="at-empty">{{localize "ARMY.Config.noDeductions"}}</p>{{/unless}}
+      <div class="at-btn-row">
+        <button type="button" data-action="addDeduction"><i class="fa-solid fa-plus"></i> {{localize "ARMY.AddDeduction"}}</button>
+        <button type="button" data-action="resetDeductions"><i class="fa-solid fa-rotate-left"></i> {{localize "ARMY.Config.reset"}}</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="at-config-section">
+      <legend><i class="fa-solid fa-user-tie"></i> {{localize "ARMY.Config.officersTitle"}}</legend>
+      <label class="at-check">
+        <input type="checkbox" data-field="includeOfficers" {{#if includeOfficers}}checked{{/if}}>
+        <span>{{localize "ARMY.Config.includeOfficers"}}</span>
+      </label>
+      <p class="at-hint">{{localize "ARMY.Config.officersHint"}}</p>
+      {{#if includeOfficers}}
+      <div class="at-grid">
+        {{#each officerLevels}}
+        <div class="at-field">
+          <label>{{label}}</label>
+          <input type="text" value="{{title}}" data-field="officerTitle" data-key="{{type}}">
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
+    </fieldset>
+
+    <fieldset class="at-config-section">
+      <legend><i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "ARMY.Config.generateTitle"}}</legend>
+      <label class="at-check">
+        <input type="checkbox" data-field="autoPopulate" {{#if autoPopulate}}checked{{/if}}>
+        <span>{{localize "ARMY.Config.autoPopulate"}}</span>
+      </label>
+      <p class="at-hint">{{localize "ARMY.Config.generateHint"}}</p>
+      {{#if autoPopulate}}
+      <div class="at-grid">
+        {{#each counts}}
+        <div class="at-field">
+          <label>{{label}}</label>
+          <input type="number" min="0" step="1" value="{{value}}" data-field="count" data-key="{{key}}">
+        </div>
+        {{/each}}
+      </div>
+      <p class="at-projected">{{localize "ARMY.Config.projected" count=projected}}</p>
+      <p class="at-hint">{{localize "ARMY.Config.generateWhere"}}</p>
+      {{/if}}
+    </fieldset>
+
+  </section>
+
+  <footer class="at-config-footer">
+    <button type="submit"><i class="fa-solid fa-floppy-disk"></i> {{localize "ARMY.Config.save"}}</button>
+  </footer>
+</div>

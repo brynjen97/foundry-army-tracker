@@ -117,16 +117,24 @@
         "company": "Add Company",
         "cohort": "Add Cohort",
         "squad": "Add Squad",
-        "member": "Add Soldier"
+        "member": "Add Soldier",
+        "army": "Add Army"
       },
       "count": {
         "companies": "companies",
         "cohorts": "cohorts",
         "squads": "squads",
-        "members": "soldiers"
-      }
+        "members": "soldiers",
+        "hosts": "hosts"
+      },
+      "army": "Army",
+      "strength": "{count} soldiers",
+      "strengthTooltip": "Soldiers within this unit, counting every squad beneath it.",
+      "impliedStrength": "{count} soldiers (assumed)",
+      "notesLabel": "Army notes",
+      "notesPh": "Campaign notes, standing orders, anything worth keeping at army level…"
     },
-    "StructureHint": "The army is organised from largest to smallest: Host → Company → Cohort → Squad. Expand a unit with the chevron, name it, and record the characters serving in each squad. Everyone at the table can fill this in.",
+    "StructureHint": "The army runs from the top down: Army → Host → Company → Cohort → Squad. Expand a unit with the chevron, name it, and record the characters serving in each squad. Everyone at the table can fill this in.",
     "UnitEmpty": "Nothing here yet — use the + button on the header above to add a sub-unit.",
     "SquadEmpty": "No soldiers recorded in this squad yet — use the + button to add one.",
     "RemoveUnit": "Remove unit",
@@ -159,12 +167,6 @@
       "openHint": "Opens the Army Tracker window."
     },
     "Settings": {
-      "wageHint": "Default daily wage for this rank. Individual members can override it in the tracker.",
-      "wageSoldier": { "name": "Daily Wage: Soldier" },
-      "wageCorporal": { "name": "Daily Wage: Corporal" },
-      "wageSergeant": { "name": "Daily Wage: Sergeant" },
-      "wageLieutenant": { "name": "Daily Wage: Lieutenant" },
-      "wageCaptain": { "name": "Daily Wage: Captain" },
       "daysPerWeek": {
         "name": "Days per Week",
         "hint": "Used to calculate the weekly salary shown in the roster."
@@ -184,6 +186,70 @@
       "currency": {
         "name": "Currency Label",
         "hint": "Shown next to all monetary amounts, e.g. gp, sp, denarii. On Pathfinder 2e, vault balances are treated as gold pieces when depositing or withdrawing coin."
+      }
+    },
+    "UnknownRank": "Removed rank ({id})",
+    "Officers": "Officers",
+    "AddOfficer": "Add officer",
+    "RemoveOfficer": "Remove officer",
+    "NoOfficers": "No officers assigned.",
+    "SquadImplied": "No soldiers named yet — mustering at the configured squad size of {count}.",
+    "OfficerTitle": {
+      "army": "General",
+      "host": "Helm",
+      "company": "Captain",
+      "cohort": "Lieutenant",
+      "squad": "Sergeant"
+    },
+    "Generate": {
+      "button": "Generate Army",
+      "title": "Generate Army Structure",
+      "unitName": "{ordinal} {type}",
+      "summary": "This will build {hosts} hosts, each of {companies} companies, each of {cohorts} cohorts, each of {squads} squads of {soldiers} soldiers.",
+      "total": "Total strength: {count} soldiers.",
+      "overwrite": "This replaces the existing army structure. The army's own name and notes are kept.",
+      "done": "Army generated — {count} soldiers in the field."
+    },
+    "Config": {
+      "title": "Configure Army Tracker",
+      "open": "Configure",
+      "menuName": "Ranks, Officers & Army",
+      "menuLabel": "Configure Army Tracker",
+      "menuHint": "Edit ranks and their daily pay, the deductions new recruits start with, officer titles, and army generation.",
+      "save": "Save Changes",
+      "saved": "Army Tracker settings saved.",
+      "reset": "Restore defaults",
+      "ranksTitle": "Ranks & Daily Pay",
+      "ranksHint": "Ranks appear in the roster dropdown in this order. The wage is the default daily pay; individual members can override it.",
+      "rankLabel": "Rank",
+      "rankLabelPh": "e.g. Standard-bearer",
+      "rankWage": "Daily wage",
+      "addRank": "Add rank",
+      "removeRank": "Remove rank",
+      "newRank": "New Rank",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "needOneRank": "At least one named rank is required.",
+      "rankInUse": "{count} roster member(s) currently hold {label}. They will show as a removed rank until you reassign them. Remove it anyway?",
+      "deductionsTitle": "Default Deductions",
+      "deductionsHint": "Deduction lines given to each newly added roster member. Existing members are not changed.",
+      "dedLabel": "Deduction",
+      "dedAmount": "Amount per day",
+      "noDeductions": "New recruits will start with no deductions.",
+      "officersTitle": "Officers",
+      "includeOfficers": "Include officers",
+      "officersHint": "Gives every unit an officer slot, and the army a commander above host level. These titles are used when generating the army; you can retitle any officer afterwards.",
+      "generateTitle": "Army Generation",
+      "autoPopulate": "Automatically populate army",
+      "generateHint": "Sets how many of each sub-unit the generator creates. Units are named by position — 1st Squad, 2nd Squad, and so on.",
+      "generateWhere": "Save, then use Generate Army on the Army Structure tab.",
+      "projected": "Projected strength: {count} soldiers.",
+      "count": {
+        "hostsPerArmy": "Hosts in the army",
+        "companiesPerHost": "Companies per host",
+        "cohortsPerCompany": "Cohorts per company",
+        "squadsPerCohort": "Squads per cohort",
+        "soldiersPerSquad": "Soldiers per squad"
       }
     }
   }
