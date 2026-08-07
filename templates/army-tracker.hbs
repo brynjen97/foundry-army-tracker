@@ -45,7 +45,8 @@
         </thead>
         <tbody>
           {{#each roster}}
-          <tr class="at-row {{#if expanded}}expanded{{/if}}">
+          <tr class="at-row {{#if expanded}}expanded{{/if}}"
+              data-member-id="{{id}}" data-can-requisition="{{canRequisition}}">
             <td class="at-col-expand">
               <button type="button" class="at-icon-btn" data-action="toggleRow" data-id="{{id}}"
                       data-tooltip="{{localize "ARMY.ToggleDetails"}}">
@@ -161,6 +162,12 @@
                        data-tooltip="{{carriedCoins}}"><span>{{localize "ARMY.Transfer.carriedLabel"}}</span><span>{{carriedF}} {{@root.currency}}</span></div>
                   {{/if}}
                   <div class="at-line at-total"><span>{{localize "ARMY.Transfer.storedLabel"}}</span><span>{{vaultF}} {{@root.currency}}</span></div>
+                  {{#if canRequisition}}
+                  <div class="at-line at-requisition-hint">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <span>{{localize "ARMY.Requisition.hint"}}</span>
+                  </div>
+                  {{/if}}
                   {{#if canTransact}}
                   <div class="at-btn-row">
                     <button type="button" data-action="depositVault" data-id="{{id}}"

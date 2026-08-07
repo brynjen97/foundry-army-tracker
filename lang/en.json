@@ -290,6 +290,27 @@
       },
       "total": "{count} members paid, {total} {currency} in total.",
       "done": "Bonus paid: {total} {currency} across {count} members."
+    },
+    "Requisition": {
+      "title": "Requisition Item",
+      "confirm": "Requisition",
+      "prompt": "Requisition <strong>{item}</strong> for {name}? The army covers the cost and it is added to their debt — their own coin is untouched.",
+      "unitPrice": "Price each",
+      "credit": "Credit remaining",
+      "quantity": "Quantity",
+      "note": "Requisitions draw on the same loan cap as cash loans, and are paid off the same way out of daily wages.",
+      "hint": "Drag an item onto this row to requisition it against army credit.",
+      "noActor": "Requisition needs a linked character to receive the item.",
+      "noItem": "That item could not be found.",
+      "noPrice": "{item} has no price, so it cannot be requisitioned.",
+      "noCredit": "This member has no army credit left — their debt is already at the cap.",
+      "overCap": "That exceeds the member's remaining army credit.",
+      "overCapDetail": "Cost {total} {currency}, credit remaining {capacity} {currency}.",
+      "failed": "The requisition could not be completed.",
+      "done": "Requisitioned {qty} × {item} for {total} {currency}, added to debt.",
+      "chatHeader": "Requisition",
+      "chat": "<strong>{name}</strong> requisitioned {qty} × {item} for {total} {currency} on army credit.",
+      "chatDebt": "Debt now {debt} {currency}; {remaining} {currency} credit remaining."
     }
   }
 }

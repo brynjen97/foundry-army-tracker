@@ -45,6 +45,14 @@ Each payday posts a summary card to chat showing everyone's pay, vault and debt 
 
 The fast-forward button next to it advances **multiple days at once** (e.g. skip 20 days of travel) — pay is applied day by day so debt is still paid off before vault savings accumulate, and a single chat card summarises the whole period.
 
+### Requisition (Pathfinder 2e)
+
+A third way to acquire gear, alongside being given it or buying it: **drag an item onto a member's row** in the roster and the army covers the cost. The item goes into the character's inventory and its price is added to their **debt** — their own coin is never touched.
+
+Mechanically it's a loan spent at the point of purchase, so it's bound by the same six-month cap as a cash loan and is paid off the same way, out of daily wages. The confirmation dialog shows the unit price, the credit remaining, and a quantity capped to what that credit will cover. A requisition that would exceed the cap is refused outright, and the goods are handed over *before* the debt is recorded, so a failed delivery can never leave someone owing money for an item they didn't receive.
+
+Players can requisition for characters they own; the GM can for anyone. Every requisition posts a chat card showing the item, cost, resulting debt and remaining credit. Items with no price (feats, spells) can't be requisitioned; free items are delivered with no debt.
+
 ### Bonuses
 
 The **Bonus** button (GM only) pays every member of the roster at once, straight into their camp vaults. Three options:

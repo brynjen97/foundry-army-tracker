@@ -14,13 +14,14 @@ import {
   getConfig,
   getRankWage,
   officerCount,
+  requestRequisition,
   requestTransfer,
   round2,
   unitStrength
 } from "./data.mjs";
 import { getCounts, getDeductionTemplate, getOfficerTitles, getRanks, includeOfficers } from "./settings.mjs";
 import { ArmyConfigApp } from "./config-app.mjs";
-import { carriedGold, coinLabel } from "./currency.mjs";
+import { carriedGold, coinLabel, itemPriceGold } from "./currency.mjs";
 import { MAX_ITEM_LEVEL, openArmyShop, shopAvailable } from "./shop.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
@@ -141,6 +142,9 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         index,
         path,
         canTransact: isGM || !!actor?.isOwner,
+        // Requisition needs a real inventory to put the goods into, so it is
+        // offered only where an actor is linked on a system we can stock.
+        canRequisition: (isGM || !!actor?.isOwner) && !!actor && shopAvailable(),
         carriedF: carried === null ? null : fmt(carried),
         carriedCoins: carried === null ? null : coinLabel(carried),
         name: actor?.name ?? member.name ?? game.i18n.localize("ARMY.UnnamedMember"),
@@ -297,6 +301,100 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   async _onFirstRender(context, options) {
     await super._onFirstRender(context, options);
     this.element.addEventListener("change", this.#onChangeInput.bind(this));
+    // Dropping an item onto a roster row requisitions it against army credit.
+    this.element.addEventListener("dragover", this.#onDragOver.bind(this));
+    this.element.addEventListener("dragleave", this.#onDragLeave.bind(this));
+    this.element.addEventListener("drop", this.#onDrop.bind(this));
+  }
+
+  #requisitionRow(event) {
+    const row = event.target?.closest?.("[data-member-id]");
+    return row?.dataset.canRequisition === "true" ? row : null;
+  }
+
+  #onDragOver(event) {
+    const row = this.#requisitionRow(event);
+    if (!row) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    row.classList.add("at-drop-target");
+  }
+
+  #onDragLeave(event) {
+    this.#requisitionRow(event)?.classList.remove("at-drop-target");
+  }
+
+  async #onDrop(event) {
+    const row = this.#requisitionRow(event);
+    if (!row) return;
+    row.classList.remove("at-drop-target");
+
+    let payload;
+    try {
+      payload = JSON.parse(event.dataTransfer.getData("text/plain"));
+    } catch {
+      return; // not a Foundry drag payload
+    }
+    if (payload?.type !== "Item" || !payload.uuid) return;
+    event.preventDefault();
+    event.stopPropagation();
+    await ArmyTrackerApp.#promptRequisition(row.dataset.memberId, payload.uuid);
+  }
+
+  /**
+   * Confirm a requisition, showing the price against the member's remaining
+   * credit. The GM re-validates everything before the item or debt moves.
+   */
+  static async #promptRequisition(memberId, uuid) {
+    const data = getArmyData();
+    const member = data.roster.find((m) => m.id === memberId);
+    if (!member) return;
+
+    const item = await globalThis.fromUuid?.(uuid);
+    if (!item) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Requisition.noItem"));
+      return;
+    }
+    const unit = itemPriceGold(item);
+    if (unit === null) {
+      ui.notifications.warn(game.i18n.format("ARMY.Requisition.noPrice", { item: item.name }));
+      return;
+    }
+
+    const cfg = getConfig();
+    const pay = computePay(member);
+    const debt = round2(member.debt ?? 0);
+    const capacity = round2(pay.maxLoan - debt);
+    if (capacity <= 0) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Requisition.noCredit"));
+      return;
+    }
+
+    const maxQty = unit > 0 ? Math.max(1, Math.floor(capacity / unit)) : 99;
+    const content = `
+      <p>${game.i18n.format("ARMY.Requisition.prompt", {
+        item: escapeHTML(item.name), name: escapeHTML(memberName(member))
+      })}</p>
+      <div class="at-line"><span>${game.i18n.localize("ARMY.Requisition.unitPrice")}</span><span>${fmt(unit)} ${escapeHTML(cfg.currency)}</span></div>
+      <div class="at-line"><span>${game.i18n.localize("ARMY.Requisition.credit")}</span><span>${fmt(capacity)} ${escapeHTML(cfg.currency)}</span></div>
+      <div class="form-group">
+        <label>${game.i18n.localize("ARMY.Requisition.quantity")}</label>
+        <input type="number" name="quantity" min="1" step="1" max="${maxQty}" value="1" autofocus>
+      </div>
+      <p class="at-hint">${game.i18n.localize("ARMY.Requisition.note")}</p>`;
+
+    const quantity = await DialogV2.prompt({
+      window: { title: game.i18n.localize("ARMY.Requisition.title") },
+      content,
+      rejectClose: false,
+      ok: {
+        label: game.i18n.localize("ARMY.Requisition.confirm"),
+        icon: "fa-solid fa-clipboard-check",
+        callback: (event, button) => Number(button.form.elements.quantity.value)
+      }
+    });
+    if (!quantity || Number.isNaN(quantity) || quantity < 1) return;
+    await requestRequisition({ memberId, uuid, quantity: Math.floor(quantity) });
   }
 
   _onClose(options) {

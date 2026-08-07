@@ -1,6 +1,6 @@
 import { LEVELS, MODULE_ID, SETTING_DATA } from "./constants.mjs";
 import { round2, fmt, escapeHTML, docClass } from "./util.mjs";
-import { giveToActor, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
+import { addItemToActor, giveToActor, itemPriceGold, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
 import {
   DEFAULT_STRUCTURE,
   getConfig,
@@ -264,6 +264,18 @@ export function onSocketMessage(message) {
       if (message.userId !== game.user.id) return;
       reportTransfer(message.result);
       return;
+    case "requisition":
+      if (!game.user.isGM || game.user !== game.users.activeGM) return;
+      performRequisition(message).then((result) => {
+        game.socket.emit(`module.${MODULE_ID}`, {
+          type: "requisitionResult", userId: message.userId, result
+        });
+      });
+      return;
+    case "requisitionResult":
+      if (message.userId !== game.user.id) return;
+      reportRequisition(message.result);
+      return;
   }
 }
 
@@ -350,6 +362,121 @@ export function reportTransfer(result) {
     currency: cfg.currency,
     vault: fmt(result.vault)
   }));
+}
+
+/* -------------------------------------------- */
+/*  Requisition                                 */
+/* -------------------------------------------- */
+
+/**
+ * Draw an item against the army's credit rather than the character's purse.
+ *
+ * Mechanically this is a loan spent at the point of purchase: the item goes
+ * into the character's inventory and its price is added to their debt, so it
+ * is bound by the same cap as a cash loan and is paid off the same way, out
+ * of daily wages. The character's own coin is never touched.
+ */
+export async function performRequisition({ memberId, uuid, quantity, userId }) {
+  const data = getArmyData();
+  const member = data.roster.find((m) => m.id === memberId);
+  if (!member) return { ok: false, error: "ARMY.Transfer.NoMember" };
+
+  const user = game.users.get(userId);
+  if (!user) return { ok: false, error: "ARMY.Transfer.NoUser" };
+
+  const actor = member.actorId ? game.actors.get(member.actorId) : null;
+  if (!actor) return { ok: false, error: "ARMY.Requisition.noActor" };
+  if (!user.isGM && !actor.testUserPermission(user, "OWNER")) {
+    return { ok: false, error: "ARMY.Transfer.NotOwner" };
+  }
+
+  const item = await globalThis.fromUuid?.(uuid);
+  if (!item) return { ok: false, error: "ARMY.Requisition.noItem" };
+
+  const unit = itemPriceGold(item);
+  if (unit === null) return { ok: false, error: "ARMY.Requisition.noPrice" };
+
+  const qty = Math.max(1, Math.floor(Number(quantity) || 1));
+  const total = round2(unit * qty);
+
+  const cfg = getConfig();
+  const pay = computePay(member);
+  const debt = round2(member.debt ?? 0);
+  const capacity = round2(pay.maxLoan - debt);
+  if (total > capacity) {
+    return {
+      ok: false,
+      error: "ARMY.Requisition.overCap",
+      detail: game.i18n.format("ARMY.Requisition.overCapDetail", {
+        total: fmt(total), capacity: fmt(Math.max(0, capacity)), currency: cfg.currency
+      })
+    };
+  }
+
+  // Hand over the goods before recording the debt, so a failed creation
+  // cannot leave a character owing money for an item they never received.
+  if (!(await addItemToActor(actor, item, qty))) {
+    return { ok: false, error: "ARMY.Requisition.failed" };
+  }
+  member.debt = round2(debt + total);
+  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+
+  await docClass("ChatMessage").create({
+    content: `
+      <div class="at-payday">
+        <h3><i class="fa-solid fa-clipboard-check"></i> ${game.i18n.localize("ARMY.Requisition.chatHeader")}</h3>
+        <p>${game.i18n.format("ARMY.Requisition.chat", {
+          name: escapeHTML(memberName(member)),
+          item: escapeHTML(item.name),
+          qty,
+          total: fmt(total),
+          currency: escapeHTML(cfg.currency)
+        })}</p>
+        <p class="at-currency-note">${game.i18n.format("ARMY.Requisition.chatDebt", {
+          debt: fmt(member.debt),
+          remaining: fmt(round2(capacity - total)),
+          currency: escapeHTML(cfg.currency)
+        })}</p>
+      </div>`,
+    speaker: { alias: game.i18n.localize("ARMY.Payday.speaker") }
+  });
+
+  return {
+    ok: true,
+    item: item.name,
+    qty,
+    total,
+    debt: member.debt,
+    remaining: round2(capacity - total)
+  };
+}
+
+export function reportRequisition(result) {
+  if (!result) return;
+  const cfg = getConfig();
+  if (!result.ok) {
+    const base = game.i18n.localize(result.error ?? "ARMY.Requisition.failed");
+    ui.notifications.warn(result.detail ? `${base} ${result.detail}` : base);
+    return;
+  }
+  ui.notifications.info(game.i18n.format("ARMY.Requisition.done", {
+    item: result.item, qty: result.qty, total: fmt(result.total), currency: cfg.currency
+  }));
+}
+
+/** Request a requisition: GMs run it directly, players relay to the active GM. */
+export async function requestRequisition({ memberId, uuid, quantity }) {
+  if (game.user.isGM) {
+    reportRequisition(await performRequisition({ memberId, uuid, quantity, userId: game.user.id }));
+    return;
+  }
+  if (!game.users.activeGM) {
+    ui.notifications.warn(game.i18n.localize("ARMY.NoGM"));
+    return;
+  }
+  game.socket.emit(`module.${MODULE_ID}`, {
+    type: "requisition", memberId, uuid, quantity, userId: game.user.id
+  });
 }
 
 /** Request a transfer: GMs run it directly, players relay it to the active GM. */
