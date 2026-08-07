@@ -684,6 +684,14 @@
   white-space: nowrap;
 }
 
+.at-settings-entry {
+  margin: 0.35rem 0;
+}
+
+.at-settings-entry .at-open-button {
+  width: 100%;
+}
+
 /* ---------- Payday chat card ---------- */
 
 .at-payday h3 {

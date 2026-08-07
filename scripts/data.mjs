@@ -1,5 +1,5 @@
 import { LEVELS, MODULE_ID, SETTING_DATA } from "./constants.mjs";
-import { round2, fmt } from "./util.mjs";
+import { round2, fmt, escapeHTML, docClass } from "./util.mjs";
 import { giveToActor, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
 import {
   DEFAULT_STRUCTURE,
@@ -15,7 +15,7 @@ import {
   soldiersPerSquad
 } from "./settings.mjs";
 
-export { round2, fmt, getConfig, registerSettings, seedDefaults, getRanks };
+export { round2, fmt, escapeHTML, getConfig, registerSettings, seedDefaults, getRanks };
 
 export const DEFAULT_DATA = () => ({ day: 0, roster: [], structure: DEFAULT_STRUCTURE() });
 
@@ -317,18 +317,18 @@ export async function performTransfer({ memberId, direction, amount, userId }) {
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
   const cfg = getConfig();
-  await ChatMessage.create({
+  await docClass("ChatMessage").create({
     content: `
       <div class="at-payday">
         <h3><i class="fa-solid fa-vault"></i> ${game.i18n.localize("ARMY.Transfer.chatHeader")}</h3>
         <p>${game.i18n.format(`ARMY.Transfer.chat.${direction}`, {
-          name: Handlebars.escapeExpression(name),
+          name: escapeHTML(name),
           amount: fmt(amount),
-          currency: Handlebars.escapeExpression(cfg.currency)
+          currency: escapeHTML(cfg.currency)
         })}</p>
         <p class="at-currency-note">${game.i18n.format("ARMY.Transfer.chatBalance", {
           vault: fmt(member.vault),
-          currency: Handlebars.escapeExpression(cfg.currency)
+          currency: escapeHTML(cfg.currency)
         })}</p>
       </div>`,
     speaker: { alias: game.i18n.localize("ARMY.Payday.speaker") }
@@ -426,7 +426,7 @@ export async function advanceDay(days = 1) {
   data.day = (data.day ?? 0) + days;
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
-  const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
+  const esc = escapeHTML;
   const signed = (v) => (v > 0 ? `+${fmt(v)}` : fmt(v));
   const deltaClass = (v, goodWhenPositive) => {
     if (v === 0) return "";
@@ -471,7 +471,7 @@ export async function advanceDay(days = 1) {
       ` : `<p>${loc("ARMY.Payday.empty")}</p>`}
     </div>`;
 
-  await ChatMessage.create({
+  await docClass("ChatMessage").create({
     content,
     speaker: { alias: loc("ARMY.Payday.speaker") }
   });
@@ -542,7 +542,7 @@ export async function grantBonus({ mode, amount = 0, clearDebtFirst = false }) {
 
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
-  const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
+  const esc = escapeHTML;
   const loc = (k) => game.i18n.localize(k);
   const body = rows.map((r) => `
     <tr>
@@ -577,7 +577,7 @@ export async function grantBonus({ mode, amount = 0, clearDebtFirst = false }) {
       ` : `<p>${loc("ARMY.Payday.empty")}</p>`}
     </div>`;
 
-  await ChatMessage.create({
+  await docClass("ChatMessage").create({
     content,
     speaker: { alias: loc("ARMY.Payday.speaker") }
   });

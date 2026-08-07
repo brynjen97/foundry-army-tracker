@@ -8,6 +8,7 @@ import {
   computePay,
   grantBonus,
   memberName,
+  escapeHTML,
   fmt,
   getArmyData,
   getConfig,
@@ -396,7 +397,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
     const cfg = getConfig();
-    const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
+    const esc = escapeHTML;
     const loc = (k) => game.i18n.localize(k);
 
     const preview = data.roster.map((m) => ({
@@ -505,7 +506,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static async _onAddMember() {
     if (!game.user.isGM) return;
     const data = getArmyData();
-    const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
+    const esc = escapeHTML;
     const taken = new Set(data.roster.map((m) => m.actorId).filter(Boolean));
     const actors = game.actors.contents
       .filter((a) => !taken.has(a.id))

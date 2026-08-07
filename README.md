@@ -2,7 +2,9 @@
 
 A Foundry VTT module for running campaigns in a military setting. Track your party's ranks, daily wages and deductions, debts and camp-vault savings — then hit **Advance Day** to pay the troops. A second tab maps your army's structure from hosts down to individual squads, and players can fill in the characters they meet along the way.
 
-Compatible with **Foundry VTT v12 and v13**. System-agnostic, with optional **Pathfinder 2e** integration that moves real coin between character inventories and the vault.
+Built for **Foundry VTT v14**, and written to keep working back to v12. System-agnostic, with optional **Pathfinder 2e** integration that moves real coin between character inventories and the vault.
+
+The UI is built on ApplicationV2 and DialogV2 throughout, and the module avoids the bare globals that have been migrating into namespaces across recent versions — HTML escaping, document classes and template preloading all resolve the namespaced form first and degrade rather than throw if it isn't there.
 
 ## Features
 
