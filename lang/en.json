@@ -250,7 +250,12 @@
         "cohortsPerCompany": "Cohorts per company",
         "squadsPerCohort": "Squads per cohort",
         "soldiersPerSquad": "Soldiers per squad"
-      }
+      },
+      "requisitionTitle": "Requisition",
+      "requisitionApproval": "Require approval from the ranking party member",
+      "requisitionHint": "Player requisitions are sent to the highest-ranking member of the roster for sign-off before the item is handed over. Seniority follows the rank order above — the last rank is the most senior. GM requisitions are never held for approval, and neither is one made by the ranking member themselves.",
+      "currentApprover": "Approval currently rests with {name}.",
+      "noApprover": "No roster members yet, so there is nobody to approve requisitions."
     },
     "ExpandAll": "Expand all",
     "CollapseAll": "Collapse all",
@@ -310,7 +315,14 @@
       "done": "Requisitioned {qty} × {item} for {total} {currency}, added to debt.",
       "chatHeader": "Requisition",
       "chat": "<strong>{name}</strong> requisitioned {qty} × {item} for {total} {currency} on army credit.",
-      "chatDebt": "Debt now {debt} {currency}; {remaining} {currency} credit remaining."
+      "chatDebt": "Debt now {debt} {currency}; {remaining} {currency} credit remaining.",
+      "approvalTitle": "Requisition Approval",
+      "approvalPrompt": "<strong>{requester}</strong> requests {qty} × <strong>{item}</strong> on army credit, at a cost of {total} {currency}.",
+      "approvalNote": "You are being asked as {approver}, the ranking member of the party.",
+      "approve": "Approve",
+      "deny": "Deny",
+      "denied": "The requisition was denied by the ranking member.",
+      "pending": "Requisition sent to {approver} for approval."
     }
   }
 }

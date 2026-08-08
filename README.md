@@ -53,6 +53,14 @@ Mechanically it's a loan spent at the point of purchase, so it's bound by the sa
 
 Players can requisition for characters they own; the GM can for anyone. Every requisition posts a chat card showing the item, cost, resulting debt and remaining credit. Items with no price (feats, spells) can't be requisitioned; free items are delivered with no debt.
 
+**Approval by the ranking member** (on by default, toggleable under *Configure Army Tracker → Requisition*): a player's requisition is held and a prompt is sent to whoever holds the most senior rank on the roster, showing who asked, for what, and at what cost. Nothing is delivered and no debt is recorded until they approve.
+
+Seniority follows the **rank order in the config** — the last rank in the list is the most senior — so dragging ranks up and down also rearranges the chain of command. The config panel names whoever currently holds sign-off.
+
+Three cases skip the prompt: the GM's own requisitions, a requisition by the ranking member themselves, and the toggle being off. If the ranking member's player is offline, the GM is asked in their place.
+
+Approval is decided on the GM's client, so it can't be skipped by a player editing their own; only the user actually asked can answer, and a decision can't be replayed.
+
 ### Bonuses
 
 The **Bonus** button (GM only) pays every member of the roster at once, straight into their camp vaults. Three options:

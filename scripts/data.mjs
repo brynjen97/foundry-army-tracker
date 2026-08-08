@@ -11,6 +11,7 @@ import {
   getRanks,
   includeOfficers,
   registerSettings,
+  requisitionApprovalRequired,
   seedDefaults,
   soldiersPerSquad
 } from "./settings.mjs";
@@ -266,15 +267,31 @@ export function onSocketMessage(message) {
       return;
     case "requisition":
       if (!game.user.isGM || game.user !== game.users.activeGM) return;
-      performRequisition(message).then((result) => {
-        game.socket.emit(`module.${MODULE_ID}`, {
-          type: "requisitionResult", userId: message.userId, result
-        });
-      });
+      routeRequisition(message);
       return;
     case "requisitionResult":
       if (message.userId !== game.user.id) return;
       reportRequisition(message.result);
+      return;
+    case "requisitionPending":
+      if (message.userId !== game.user.id) return;
+      reportPending(message.approverName);
+      return;
+    case "requisitionApproval":
+      // Only the ranking member's owner is asked; everyone else ignores it.
+      if (!message.approvers?.includes(game.user.id)) return;
+      promptApproval(message.request).then((approved) => {
+        game.socket.emit(`module.${MODULE_ID}`, {
+          type: "requisitionDecision",
+          requestId: message.request.requestId,
+          approved: approved === true,
+          userId: game.user.id
+        });
+      });
+      return;
+    case "requisitionDecision":
+      if (!game.user.isGM || game.user !== game.users.activeGM) return;
+      onRequisitionDecision(message);
       return;
   }
 }
@@ -365,6 +382,47 @@ export function reportTransfer(result) {
 }
 
 /* -------------------------------------------- */
+/*  Chain of command                            */
+/* -------------------------------------------- */
+
+/**
+ * The senior member of the roster.
+ *
+ * Seniority comes from the order of the configured rank list — the last rank
+ * is the most senior — so the GM controls it by arranging ranks in the config
+ * menu. Ties are broken by effective wage, then by roster order, so the answer
+ * is stable rather than depending on iteration luck.
+ */
+export function highestRankingMember(roster = null) {
+  const list = roster ?? getArmyData().roster;
+  if (!list?.length) return null;
+  const order = new Map(getRanks().map((r, i) => [r.id, i]));
+  let best = null;
+  let bestRank = -Infinity;
+  let bestWage = -Infinity;
+  for (const member of list) {
+    const rank = order.has(member.rank) ? order.get(member.rank) : -1;
+    const wage = round2(effectiveWage(member));
+    if (rank > bestRank || (rank === bestRank && wage > bestWage)) {
+      best = member;
+      bestRank = rank;
+      bestWage = wage;
+    }
+  }
+  return best;
+}
+
+/** Online, non-GM users who own the member's character. */
+function ownersOnline(member) {
+  if (!member?.actorId) return [];
+  const actor = game.actors.get(member.actorId);
+  if (!actor) return [];
+  return game.users
+    .filter((u) => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
+    .map((u) => u.id);
+}
+
+/* -------------------------------------------- */
 /*  Requisition                                 */
 /* -------------------------------------------- */
 
@@ -451,6 +509,130 @@ export async function performRequisition({ memberId, uuid, quantity, userId }) {
   };
 }
 
+/* -------------------------------------------- */
+/*  Requisition approval                        */
+/* -------------------------------------------- */
+
+/** Requests awaiting sign-off, held on the GM's client only. */
+const pendingRequisitions = new Map();
+
+/** Requests are dropped rather than left hanging if nobody answers. */
+const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
+
+function prunePending() {
+  const cutoff = Date.now() - APPROVAL_TIMEOUT_MS;
+  for (const [id, entry] of pendingRequisitions) {
+    if (entry.at < cutoff) pendingRequisitions.delete(id);
+  }
+}
+
+/**
+ * Decide whether a requisition needs sign-off, and either run it or send the
+ * request to the ranking member. Runs on the active GM, so the approval step
+ * cannot be skipped by a player editing their own client.
+ */
+export async function routeRequisition(message) {
+  prunePending();
+  const requester = game.users.get(message.userId);
+
+  // The GM is the authority here, so their own requisitions do not queue.
+  if (!requisitionApprovalRequired() || requester?.isGM) {
+    return respondRequisition(message.userId, await performRequisition(message));
+  }
+
+  const data = getArmyData();
+  const approver = highestRankingMember(data.roster);
+
+  // Nobody outranks the requester, so there is no one to ask.
+  if (!approver || approver.id === message.memberId) {
+    return respondRequisition(message.userId, await performRequisition(message));
+  }
+
+  // Preview the cost so the approver sees what they are signing off.
+  const item = await globalThis.fromUuid?.(message.uuid);
+  const unit = itemPriceGold(item);
+  if (!item || unit === null) {
+    return respondRequisition(message.userId, await performRequisition(message));
+  }
+
+  const member = data.roster.find((m) => m.id === message.memberId);
+  const qty = Math.max(1, Math.floor(Number(message.quantity) || 1));
+  const approvers = ownersOnline(approver);
+  const request = {
+    requestId: foundry.utils.randomID(),
+    requesterName: memberName(member ?? {}),
+    approverName: memberName(approver),
+    item: item.name,
+    qty,
+    total: round2(unit * qty)
+  };
+
+  // With no player at the keyboard for the ranking member, the GM signs off.
+  if (!approvers.length) {
+    const approved = await promptApproval(request);
+    return respondRequisition(message.userId, approved
+      ? await performRequisition(message)
+      : { ok: false, error: "ARMY.Requisition.denied" });
+  }
+
+  pendingRequisitions.set(request.requestId, {
+    payload: message, approvers, at: Date.now()
+  });
+  game.socket.emit(`module.${MODULE_ID}`, {
+    type: "requisitionApproval", approvers, request
+  });
+  game.socket.emit(`module.${MODULE_ID}`, {
+    type: "requisitionPending", userId: message.userId, approverName: request.approverName
+  });
+  if (message.userId === game.user.id) reportPending(request.approverName);
+}
+
+/** Handle a decision coming back from the ranking member's client. */
+export async function onRequisitionDecision(message) {
+  const entry = pendingRequisitions.get(message.requestId);
+  if (!entry) return; // already answered, or expired
+  // Only a user who was actually asked may answer.
+  if (!entry.approvers.includes(message.userId)) return;
+  pendingRequisitions.delete(message.requestId);
+
+  respondRequisition(entry.payload.userId, message.approved
+    ? await performRequisition(entry.payload)
+    : { ok: false, error: "ARMY.Requisition.denied" });
+}
+
+/** Show the approval prompt and return the decision. */
+export async function promptApproval(request) {
+  const cfg = getConfig();
+  const { DialogV2 } = foundry.applications.api;
+  return DialogV2.confirm({
+    window: { title: game.i18n.localize("ARMY.Requisition.approvalTitle") },
+    content: `
+      <p>${game.i18n.format("ARMY.Requisition.approvalPrompt", {
+        requester: escapeHTML(request.requesterName),
+        qty: request.qty,
+        item: escapeHTML(request.item),
+        total: fmt(request.total),
+        currency: escapeHTML(cfg.currency)
+      })}</p>
+      <p class="at-hint">${game.i18n.format("ARMY.Requisition.approvalNote", {
+        approver: escapeHTML(request.approverName)
+      })}</p>`,
+    yes: { label: game.i18n.localize("ARMY.Requisition.approve"), icon: "fa-solid fa-check" },
+    no: { label: game.i18n.localize("ARMY.Requisition.deny"), icon: "fa-solid fa-xmark" },
+    rejectClose: false,
+    modal: true
+  });
+}
+
+function respondRequisition(userId, result) {
+  if (userId === game.user.id) return reportRequisition(result);
+  game.socket.emit(`module.${MODULE_ID}`, { type: "requisitionResult", userId, result });
+}
+
+export function reportPending(approverName) {
+  ui.notifications.info(game.i18n.format("ARMY.Requisition.pending", { approver: approverName }));
+}
+
 export function reportRequisition(result) {
   if (!result) return;
   const cfg = getConfig();
@@ -464,10 +646,10 @@ export function reportRequisition(result) {
   }));
 }
 
-/** Request a requisition: GMs run it directly, players relay to the active GM. */
+/** Request a requisition: GMs route it locally, players relay to the active GM. */
 export async function requestRequisition({ memberId, uuid, quantity }) {
   if (game.user.isGM) {
-    reportRequisition(await performRequisition({ memberId, uuid, quantity, userId: game.user.id }));
+    await routeRequisition({ memberId, uuid, quantity, userId: game.user.id });
     return;
   }
   if (!game.users.activeGM) {
