@@ -111,6 +111,19 @@ export function unitStrength(unit, depth) {
   return (unit[level.childKey] ?? []).reduce((sum, child) => sum + unitStrength(child, depth + 1), 0);
 }
 
+/**
+ * Whether a unit answers to a search term, by its own name or by any of its
+ * officers. Officer titles count as well as names, so searching "helm" finds
+ * every host commander rather than only people called Helm.
+ */
+export function unitMatches(unit, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  const hit = (value) => String(value ?? "").toLowerCase().includes(q);
+  if (hit(unit?.name)) return true;
+  return (unit?.officers ?? []).some((o) => hit(o.name) || hit(o.title));
+}
+
 /** Every unit id at or beneath this one, for bulk expand/collapse. */
 export function collectUnitIds(unit, depth, out = []) {
   if (!unit) return out;

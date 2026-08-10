@@ -17,6 +17,7 @@ import {
   requestRequisition,
   requestTransfer,
   round2,
+  unitMatches,
   unitStrength
 } from "./data.mjs";
 import { getCounts, getDeductionTemplate, getOfficerTitles, getRanks, includeOfficers } from "./settings.mjs";
@@ -70,6 +71,10 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#collapsedUnits.clear();
   }
 
+  /** Army structure search term, and whether to put the caret back after render. */
+  #structureQuery = "";
+  #restoreSearchFocus = false;
+
   static DEFAULT_OPTIONS = {
     id: "army-tracker",
     classes: ["army-tracker"],
@@ -96,6 +101,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       addUnit: ArmyTrackerApp._onAddUnit,
       removeUnit: ArmyTrackerApp._onRemoveUnit,
       toggleUnit: ArmyTrackerApp._onToggleUnit,
+      clearSearch: ArmyTrackerApp._onClearSearch,
       expandAll: ArmyTrackerApp._onExpandAll,
       collapseAll: ArmyTrackerApp._onCollapseAll,
       openShop: ArmyTrackerApp._onOpenShop,
@@ -183,7 +189,9 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return acc;
     }, { net: 0, debt: 0, vault: 0 });
 
-    const army = this.#buildNode(data.structure.army, null, null, 0);
+    const query = this.#structureQuery.trim();
+    const stats = { matches: 0 };
+    const army = this.#buildNode(data.structure.army, null, null, 0, query, stats);
 
     return {
       isGM,
@@ -206,6 +214,12 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         vaultF: fmt(totals.vault)
       },
       army,
+      searchQuery: this.#structureQuery,
+      searching: !!query,
+      noMatches: !!query && !army,
+      matchSummary: query
+        ? game.i18n.format("ARMY.Search.results", { count: stats.matches })
+        : null,
       officersEnabled: includeOfficers(),
       shopAvailable: shopAvailable(),
       maxItemLevel: MAX_ITEM_LEVEL
@@ -216,13 +230,23 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
    * Build a display node for one unit of the army structure (recursive).
    * The army sits at the root of the tree, so it has no parent array and
    * passes null for arrayPath/index — that is what marks it unremovable.
+   *
+   * With a search active this doubles as the filter. A unit survives if it
+   * matches or if anything beneath it does, so the path down to a hit stays
+   * visible; everything else returns null and is pruned. A unit that matched
+   * in its own right keeps its whole subtree, since having searched for it you
+   * presumably want to see what is in it.
+   *
+   * @returns {object|null} null when filtered out.
    */
-  #buildNode(unit, arrayPath, index, depth) {
+  #buildNode(unit, arrayPath, index, depth, query = "", stats = null) {
     const level = LEVELS[depth];
     const isRoot = arrayPath === null;
     const path = isRoot ? "structure.army" : `${arrayPath}.${index}`;
     const officersOn = includeOfficers();
     const strength = unitStrength(unit, depth);
+    const selfMatch = !!query && unitMatches(unit, query);
+    if (selfMatch && stats) stats.matches++;
 
     const node = {
       id: unit.id,
@@ -277,7 +301,12 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       node.childrenPath = `${path}.${level.childKey}`;
       node.childType = level.childType;
       node.addChildLabel = game.i18n.localize(`ARMY.Unit.add.${level.childType}`);
-      node.children = children.map((child, i) => this.#buildNode(child, node.childrenPath, i, depth + 1));
+      // A unit that matched shows everything under it; otherwise the search
+      // keeps propagating down and only surviving branches come back.
+      const childQuery = selfMatch ? "" : query;
+      node.children = children
+        .map((child, i) => this.#buildNode(child, node.childrenPath, i, depth + 1, childQuery, stats))
+        .filter((child) => child !== null);
       node.summary = `${children.length} ${game.i18n.localize(`ARMY.Unit.count.${level.childKey}`)}`;
     } else {
       const members = unit.members ?? [];
@@ -295,16 +324,46 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         ? `${members.length} ${game.i18n.localize("ARMY.Unit.count.members")}`
         : game.i18n.format("ARMY.Unit.impliedStrength", { count: strength });
     }
+
+    if (query) {
+      const keptChildren = node.children?.length ?? 0;
+      if (!selfMatch && !keptChildren) return null;
+      node.isMatch = selfMatch;
+      // Open the trail down to a hit, or the search would hide its own
+      // results. A unit that matched keeps its usual state, so it appears as
+      // a closed banner to click into rather than dumping its whole subtree.
+      if (!selfMatch) node.collapsed = false;
+    }
     return node;
+  }
+
+  async _onRender(context, options) {
+    await super._onRender?.(context, options);
+    // Re-rendering on each keystroke replaces the input, so put the caret back.
+    if (!this.#restoreSearchFocus) return;
+    this.#restoreSearchFocus = false;
+    const input = this.element.querySelector(".at-search-input");
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
   }
 
   async _onFirstRender(context, options) {
     await super._onFirstRender(context, options);
     this.element.addEventListener("change", this.#onChangeInput.bind(this));
+    this.element.addEventListener("input", this.#onSearchInput.bind(this));
     // Dropping an item onto a roster row requisitions it against army credit.
     this.element.addEventListener("dragover", this.#onDragOver.bind(this));
     this.element.addEventListener("dragleave", this.#onDragLeave.bind(this));
     this.element.addEventListener("drop", this.#onDrop.bind(this));
+  }
+
+  #onSearchInput(event) {
+    if (!event.target?.classList?.contains("at-search-input")) return;
+    this.#structureQuery = event.target.value;
+    this.#restoreSearchFocus = true;
+    this.render();
   }
 
   #requisitionRow(event) {
@@ -443,6 +502,12 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // The current state comes from the rendered node, since the default
     // depends on depth rather than on membership of either set.
     this.#setCollapsed(target.dataset.id, target.dataset.collapsed !== "true");
+    this.render();
+  }
+
+  static _onClearSearch() {
+    this.#structureQuery = "";
+    this.#restoreSearchFocus = true;
     this.render();
   }
 

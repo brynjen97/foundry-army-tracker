@@ -505,6 +505,46 @@
   opacity: 0.85;
 }
 
+.army-tracker .at-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--at-border);
+  border-radius: 4px;
+}
+
+.army-tracker .at-search > i {
+  opacity: 0.6;
+  flex: 0 0 auto;
+}
+
+.army-tracker .at-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+}
+
+.army-tracker .at-search-input:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.army-tracker .at-search-count {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+/* Units that matched the search, as opposed to those kept to show the path. */
+.army-tracker .at-unit.at-match > .at-unit-header {
+  background: color-mix(in srgb, var(--at-accent) 22%, transparent);
+  border-radius: 3px;
+}
+
 .army-tracker .at-structure-tools {
   display: flex;
   align-items: center;
