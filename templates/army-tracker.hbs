@@ -19,6 +19,10 @@
             data-tooltip="{{localize "ARMY.AdvanceDays"}}">
       <i class="fa-solid fa-forward-fast"></i>
     </button>
+    <button type="button" class="at-bonus" data-action="grantBonus"
+            data-tooltip="{{localize "ARMY.Bonus.tooltip"}}">
+      <i class="fa-solid fa-gift"></i> {{localize "ARMY.Bonus.button"}}
+    </button>
     {{/if}}
   </header>
 
@@ -41,7 +45,8 @@
         </thead>
         <tbody>
           {{#each roster}}
-          <tr class="at-row {{#if expanded}}expanded{{/if}}">
+          <tr class="at-row {{#if expanded}}expanded{{/if}}"
+              data-member-id="{{id}}" data-can-requisition="{{canRequisition}}">
             <td class="at-col-expand">
               <button type="button" class="at-icon-btn" data-action="toggleRow" data-id="{{id}}"
                       data-tooltip="{{localize "ARMY.ToggleDetails"}}">
@@ -157,6 +162,12 @@
                        data-tooltip="{{carriedCoins}}"><span>{{localize "ARMY.Transfer.carriedLabel"}}</span><span>{{carriedF}} {{@root.currency}}</span></div>
                   {{/if}}
                   <div class="at-line at-total"><span>{{localize "ARMY.Transfer.storedLabel"}}</span><span>{{vaultF}} {{@root.currency}}</span></div>
+                  {{#if canRequisition}}
+                  <div class="at-line at-requisition-hint">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <span>{{localize "ARMY.Requisition.hint"}}</span>
+                  </div>
+                  {{/if}}
                   {{#if canTransact}}
                   <div class="at-btn-row">
                     <button type="button" data-action="depositVault" data-id="{{id}}"
@@ -198,6 +209,19 @@
     {{else}}
     <div class="at-structure">
       <p class="at-hint">{{localize "ARMY.StructureHint"}}</p>
+      <div class="at-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" class="at-search-input" value="{{searchQuery}}"
+               placeholder="{{localize "ARMY.Search.placeholder"}}"
+               data-tooltip="{{localize "ARMY.Search.tooltip"}}">
+        {{#if searching}}
+        <span class="at-search-count">{{matchSummary}}</span>
+        <button type="button" class="at-icon-btn" data-action="clearSearch"
+                data-tooltip="{{localize "ARMY.Search.clear"}}">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        {{/if}}
+      </div>
       <div class="at-structure-tools">
         <button type="button" data-action="expandAll" data-tooltip="{{localize "ARMY.ExpandAllTooltip"}}">
           <i class="fa-solid fa-angles-down"></i> {{localize "ARMY.ExpandAll"}}
@@ -215,9 +239,13 @@
         </button>
         {{/if}}
       </div>
-      {{#with army}}
-        {{> "modules/foundry-army-tracker/templates/unit.hbs"}}
-      {{/with}}
+      {{#if noMatches}}
+      <p class="at-empty">{{localize "ARMY.Search.none"}}</p>
+      {{else}}
+        {{#with army}}
+          {{> "modules/foundry-army-tracker/templates/unit.hbs"}}
+        {{/with}}
+      {{/if}}
     </div>
     {{/if}}
   </section>

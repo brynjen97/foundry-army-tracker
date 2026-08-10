@@ -2,7 +2,9 @@
 
 A Foundry VTT module for running campaigns in a military setting. Track your party's ranks, daily wages and deductions, debts and camp-vault savings — then hit **Advance Day** to pay the troops. A second tab maps your army's structure from hosts down to individual squads, and players can fill in the characters they meet along the way.
 
-Compatible with **Foundry VTT v12 and v13**. System-agnostic, with optional **Pathfinder 2e** integration that moves real coin between character inventories and the vault.
+Built for **Foundry VTT v14**, and written to keep working back to v12. System-agnostic, with optional **Pathfinder 2e** integration that moves real coin between character inventories and the vault.
+
+The UI is built on ApplicationV2 and DialogV2 throughout, and the module avoids the bare globals that have been migrating into namespaces across recent versions — HTML escaping, document classes and template preloading all resolve the namespaced form first and degrade rather than throw if it isn't there.
 
 ## Features
 
@@ -43,10 +45,37 @@ Each payday posts a summary card to chat showing everyone's pay, vault and debt 
 
 The fast-forward button next to it advances **multiple days at once** (e.g. skip 20 days of travel) — pay is applied day by day so debt is still paid off before vault savings accumulate, and a single chat card summarises the whole period.
 
+### Requisition (Pathfinder 2e)
+
+A third way to acquire gear, alongside being given it or buying it: **drag an item onto a member's row** in the roster and the army covers the cost. The item goes into the character's inventory and its price is added to their **debt** — their own coin is never touched.
+
+Mechanically it's a loan spent at the point of purchase, so it's bound by the same six-month cap as a cash loan and is paid off the same way, out of daily wages. The confirmation dialog shows the unit price, the credit remaining, and a quantity capped to what that credit will cover. A requisition that would exceed the cap is refused outright, and the goods are handed over *before* the debt is recorded, so a failed delivery can never leave someone owing money for an item they didn't receive.
+
+Players can requisition for characters they own; the GM can for anyone. Every requisition posts a chat card showing the item, cost, resulting debt and remaining credit. Items with no price (feats, spells) can't be requisitioned; free items are delivered with no debt.
+
+**Approval by the ranking member** (on by default, toggleable under *Configure Army Tracker → Requisition*): a player's requisition is held and a prompt is sent to whoever holds the most senior rank on the roster, showing who asked, for what, and at what cost. Nothing is delivered and no debt is recorded until they approve.
+
+Seniority follows the **rank order in the config** — the last rank in the list is the most senior — so dragging ranks up and down also rearranges the chain of command. The config panel names whoever currently holds sign-off.
+
+Three cases skip the prompt: the GM's own requisitions, a requisition by the ranking member themselves, and the toggle being off. If the ranking member's player is offline, the GM is asked in their place.
+
+Approval is decided on the GM's client, so it can't be skipped by a player editing their own; only the user actually asked can answer, and a decision can't be replayed.
+
+### Bonuses
+
+The **Bonus** button (GM only) pays every member of the roster at once, straight into their camp vaults. Three options:
+
+- **Flat amount** — the same figure for everyone.
+- **One week's pay** and **one month's pay** — vary per member with their rank and any wage override.
+
+Week and month bonuses use each member's **base wage before deductions**, so daily living costs don't eat into the reward, and a member whose deductions exceed their wage still receives something instead of a negative "bonus". The dialog previews exactly what every member would get under both options, with totals, before you commit. Optionally tick **pay down debt first** to clear outstanding debt before banking the remainder. Each bonus posts a summary card to chat.
+
 ### Army Structure
 
 A collapsible hierarchy — **Army → Host → Company → Cohort → Squad** — that anyone at the table can edit:
 
+- The army carries a **level**, shown on its header. On **Pathfinder 2e** a shop icon sits beside it and opens the system's compendium browser on the equipment tab, filtered to **common items at or below that level** — a quick way to see what the army could plausibly source. The icon only appears on PF2e; the level field itself is available on any system.
+- A **search box** filters the tree by unit name (`5th Company`) or by an officer's name *or* title (`Aldric`, or `Helm` to find every host commander at once). Matches are highlighted, the path down to each one is kept and opened automatically — otherwise the search would hide its own results — and everything else is pruned. A unit that matched keeps its whole subtree, since having searched for it you probably want to see inside. The box shows a match count and clears with one click.
 - Units start **collapsed** — only the army itself opens by default, so a generated army of several hundred soldiers fits on one screen instead of unrolling into a wall of units. **Expand all** / **Collapse all** buttons sit above the tree, and opening a unit remembers itself while the window stays open.
 - Name each unit and add sub-units with the **+** button on its header. Adding one opens both it and its parent, so what you just created is visible.
 - Squads hold a roster of named characters with a rank/role and free-text notes, so players can record the NPCs they serve alongside.

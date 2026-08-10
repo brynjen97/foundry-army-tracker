@@ -1,4 +1,4 @@
-<div class="at-unit at-depth-{{depth}} {{#if collapsed}}collapsed{{/if}} {{#if isRoot}}at-root{{/if}}">
+<div class="at-unit at-depth-{{depth}} {{#if collapsed}}collapsed{{/if}} {{#if isRoot}}at-root{{/if}} {{#if isMatch}}at-match{{/if}}">
   <div class="at-unit-header">
     <button type="button" class="at-icon-btn" data-action="toggleUnit" data-id="{{id}}"
             data-collapsed="{{collapsed}}">
@@ -9,6 +9,19 @@
     {{#if primaryOfficer}}
     <span class="at-unit-officer {{#if primaryOfficerVacant}}at-vacant{{/if}}"
           data-tooltip="{{localize "ARMY.PrimaryOfficerTooltip"}}">&mdash; {{primaryOfficer}}</span>
+    {{/if}}
+    {{#if isRoot}}
+    <span class="at-army-level" data-tooltip="{{localize "ARMY.LevelTooltip"}}">
+      <label>{{localize "ARMY.Level"}}</label>
+      <input type="number" min="0" max="{{@root.maxItemLevel}}" step="1" value="{{level}}"
+             data-path="{{path}}.level" data-dtype="Number">
+    </span>
+    {{#if @root.shopAvailable}}
+    <button type="button" class="at-icon-btn at-shop-btn" data-action="openShop"
+            data-tooltip="{{localize "ARMY.Shop.tooltip"}}">
+      <i class="fa-solid fa-shop"></i>
+    </button>
+    {{/if}}
     {{/if}}
     <span class="at-unit-strength" data-tooltip="{{localize "ARMY.Unit.strengthTooltip"}}">
       <i class="fa-solid fa-users"></i> {{strength}}

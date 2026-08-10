@@ -2,21 +2,28 @@ import { MODULE_ID, LEVELS } from "./constants.mjs";
 import {
   advanceDay,
   applyOps,
+  bonusFor,
   buildStructure,
   collectUnitIds,
   computePay,
+  grantBonus,
+  memberName,
+  escapeHTML,
   fmt,
   getArmyData,
   getConfig,
   getRankWage,
   officerCount,
+  requestRequisition,
   requestTransfer,
   round2,
+  unitMatches,
   unitStrength
 } from "./data.mjs";
 import { getCounts, getDeductionTemplate, getOfficerTitles, getRanks, includeOfficers } from "./settings.mjs";
 import { ArmyConfigApp } from "./config-app.mjs";
-import { carriedGold, coinLabel } from "./currency.mjs";
+import { carriedGold, coinLabel, itemPriceGold } from "./currency.mjs";
+import { MAX_ITEM_LEVEL, openArmyShop, shopAvailable } from "./shop.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
 
@@ -64,6 +71,10 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#collapsedUnits.clear();
   }
 
+  /** Army structure search term, and whether to put the caret back after render. */
+  #structureQuery = "";
+  #restoreSearchFocus = false;
+
   static DEFAULT_OPTIONS = {
     id: "army-tracker",
     classes: ["army-tracker"],
@@ -77,6 +88,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       switchTab: ArmyTrackerApp._onSwitchTab,
       advanceDay: ArmyTrackerApp._onAdvanceDay,
       advanceDays: ArmyTrackerApp._onAdvanceDays,
+      grantBonus: ArmyTrackerApp._onGrantBonus,
       addMember: ArmyTrackerApp._onAddMember,
       removeMember: ArmyTrackerApp._onRemoveMember,
       toggleRow: ArmyTrackerApp._onToggleRow,
@@ -89,8 +101,10 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       addUnit: ArmyTrackerApp._onAddUnit,
       removeUnit: ArmyTrackerApp._onRemoveUnit,
       toggleUnit: ArmyTrackerApp._onToggleUnit,
+      clearSearch: ArmyTrackerApp._onClearSearch,
       expandAll: ArmyTrackerApp._onExpandAll,
       collapseAll: ArmyTrackerApp._onCollapseAll,
+      openShop: ArmyTrackerApp._onOpenShop,
       addOfficer: ArmyTrackerApp._onAddOfficer,
       removeOfficer: ArmyTrackerApp._onRemoveOfficer,
       generateArmy: ArmyTrackerApp._onGenerateArmy,
@@ -134,6 +148,9 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         index,
         path,
         canTransact: isGM || !!actor?.isOwner,
+        // Requisition needs a real inventory to put the goods into, so it is
+        // offered only where an actor is linked on a system we can stock.
+        canRequisition: (isGM || !!actor?.isOwner) && !!actor && shopAvailable(),
         carriedF: carried === null ? null : fmt(carried),
         carriedCoins: carried === null ? null : coinLabel(carried),
         name: actor?.name ?? member.name ?? game.i18n.localize("ARMY.UnnamedMember"),
@@ -172,7 +189,9 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return acc;
     }, { net: 0, debt: 0, vault: 0 });
 
-    const army = this.#buildNode(data.structure.army, null, null, 0);
+    const query = this.#structureQuery.trim();
+    const stats = { matches: 0 };
+    const army = this.#buildNode(data.structure.army, null, null, 0, query, stats);
 
     return {
       isGM,
@@ -195,7 +214,15 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         vaultF: fmt(totals.vault)
       },
       army,
-      officersEnabled: includeOfficers()
+      searchQuery: this.#structureQuery,
+      searching: !!query,
+      noMatches: !!query && !army,
+      matchSummary: query
+        ? game.i18n.format("ARMY.Search.results", { count: stats.matches })
+        : null,
+      officersEnabled: includeOfficers(),
+      shopAvailable: shopAvailable(),
+      maxItemLevel: MAX_ITEM_LEVEL
     };
   }
 
@@ -203,13 +230,23 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
    * Build a display node for one unit of the army structure (recursive).
    * The army sits at the root of the tree, so it has no parent array and
    * passes null for arrayPath/index — that is what marks it unremovable.
+   *
+   * With a search active this doubles as the filter. A unit survives if it
+   * matches or if anything beneath it does, so the path down to a hit stays
+   * visible; everything else returns null and is pruned. A unit that matched
+   * in its own right keeps its whole subtree, since having searched for it you
+   * presumably want to see what is in it.
+   *
+   * @returns {object|null} null when filtered out.
    */
-  #buildNode(unit, arrayPath, index, depth) {
+  #buildNode(unit, arrayPath, index, depth, query = "", stats = null) {
     const level = LEVELS[depth];
     const isRoot = arrayPath === null;
     const path = isRoot ? "structure.army" : `${arrayPath}.${index}`;
     const officersOn = includeOfficers();
     const strength = unitStrength(unit, depth);
+    const selfMatch = !!query && unitMatches(unit, query);
+    if (selfMatch && stats) stats.matches++;
 
     const node = {
       id: unit.id,
@@ -220,6 +257,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       isRoot,
       name: unit.name ?? "",
       notes: unit.notes ?? "",
+      level: isRoot ? (unit.level ?? 1) : null,
       typeLabel: game.i18n.localize(`ARMY.Unit.${level.type}`),
       namePlaceholder: game.i18n.format("ARMY.Unit.namePh", {
         type: game.i18n.localize(`ARMY.Unit.${level.type}`)
@@ -263,7 +301,12 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       node.childrenPath = `${path}.${level.childKey}`;
       node.childType = level.childType;
       node.addChildLabel = game.i18n.localize(`ARMY.Unit.add.${level.childType}`);
-      node.children = children.map((child, i) => this.#buildNode(child, node.childrenPath, i, depth + 1));
+      // A unit that matched shows everything under it; otherwise the search
+      // keeps propagating down and only surviving branches come back.
+      const childQuery = selfMatch ? "" : query;
+      node.children = children
+        .map((child, i) => this.#buildNode(child, node.childrenPath, i, depth + 1, childQuery, stats))
+        .filter((child) => child !== null);
       node.summary = `${children.length} ${game.i18n.localize(`ARMY.Unit.count.${level.childKey}`)}`;
     } else {
       const members = unit.members ?? [];
@@ -281,12 +324,136 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         ? `${members.length} ${game.i18n.localize("ARMY.Unit.count.members")}`
         : game.i18n.format("ARMY.Unit.impliedStrength", { count: strength });
     }
+
+    if (query) {
+      const keptChildren = node.children?.length ?? 0;
+      if (!selfMatch && !keptChildren) return null;
+      node.isMatch = selfMatch;
+      // Open the trail down to a hit, or the search would hide its own
+      // results. A unit that matched keeps its usual state, so it appears as
+      // a closed banner to click into rather than dumping its whole subtree.
+      if (!selfMatch) node.collapsed = false;
+    }
     return node;
+  }
+
+  async _onRender(context, options) {
+    await super._onRender?.(context, options);
+    // Re-rendering on each keystroke replaces the input, so put the caret back.
+    if (!this.#restoreSearchFocus) return;
+    this.#restoreSearchFocus = false;
+    const input = this.element.querySelector(".at-search-input");
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
   }
 
   async _onFirstRender(context, options) {
     await super._onFirstRender(context, options);
     this.element.addEventListener("change", this.#onChangeInput.bind(this));
+    this.element.addEventListener("input", this.#onSearchInput.bind(this));
+    // Dropping an item onto a roster row requisitions it against army credit.
+    this.element.addEventListener("dragover", this.#onDragOver.bind(this));
+    this.element.addEventListener("dragleave", this.#onDragLeave.bind(this));
+    this.element.addEventListener("drop", this.#onDrop.bind(this));
+  }
+
+  #onSearchInput(event) {
+    if (!event.target?.classList?.contains("at-search-input")) return;
+    this.#structureQuery = event.target.value;
+    this.#restoreSearchFocus = true;
+    this.render();
+  }
+
+  #requisitionRow(event) {
+    const row = event.target?.closest?.("[data-member-id]");
+    return row?.dataset.canRequisition === "true" ? row : null;
+  }
+
+  #onDragOver(event) {
+    const row = this.#requisitionRow(event);
+    if (!row) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    row.classList.add("at-drop-target");
+  }
+
+  #onDragLeave(event) {
+    this.#requisitionRow(event)?.classList.remove("at-drop-target");
+  }
+
+  async #onDrop(event) {
+    const row = this.#requisitionRow(event);
+    if (!row) return;
+    row.classList.remove("at-drop-target");
+
+    let payload;
+    try {
+      payload = JSON.parse(event.dataTransfer.getData("text/plain"));
+    } catch {
+      return; // not a Foundry drag payload
+    }
+    if (payload?.type !== "Item" || !payload.uuid) return;
+    event.preventDefault();
+    event.stopPropagation();
+    await ArmyTrackerApp.#promptRequisition(row.dataset.memberId, payload.uuid);
+  }
+
+  /**
+   * Confirm a requisition, showing the price against the member's remaining
+   * credit. The GM re-validates everything before the item or debt moves.
+   */
+  static async #promptRequisition(memberId, uuid) {
+    const data = getArmyData();
+    const member = data.roster.find((m) => m.id === memberId);
+    if (!member) return;
+
+    const item = await globalThis.fromUuid?.(uuid);
+    if (!item) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Requisition.noItem"));
+      return;
+    }
+    const unit = itemPriceGold(item);
+    if (unit === null) {
+      ui.notifications.warn(game.i18n.format("ARMY.Requisition.noPrice", { item: item.name }));
+      return;
+    }
+
+    const cfg = getConfig();
+    const pay = computePay(member);
+    const debt = round2(member.debt ?? 0);
+    const capacity = round2(pay.maxLoan - debt);
+    if (capacity <= 0) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Requisition.noCredit"));
+      return;
+    }
+
+    const maxQty = unit > 0 ? Math.max(1, Math.floor(capacity / unit)) : 99;
+    const content = `
+      <p>${game.i18n.format("ARMY.Requisition.prompt", {
+        item: escapeHTML(item.name), name: escapeHTML(memberName(member))
+      })}</p>
+      <div class="at-line"><span>${game.i18n.localize("ARMY.Requisition.unitPrice")}</span><span>${fmt(unit)} ${escapeHTML(cfg.currency)}</span></div>
+      <div class="at-line"><span>${game.i18n.localize("ARMY.Requisition.credit")}</span><span>${fmt(capacity)} ${escapeHTML(cfg.currency)}</span></div>
+      <div class="form-group">
+        <label>${game.i18n.localize("ARMY.Requisition.quantity")}</label>
+        <input type="number" name="quantity" min="1" step="1" max="${maxQty}" value="1" autofocus>
+      </div>
+      <p class="at-hint">${game.i18n.localize("ARMY.Requisition.note")}</p>`;
+
+    const quantity = await DialogV2.prompt({
+      window: { title: game.i18n.localize("ARMY.Requisition.title") },
+      content,
+      rejectClose: false,
+      ok: {
+        label: game.i18n.localize("ARMY.Requisition.confirm"),
+        icon: "fa-solid fa-clipboard-check",
+        callback: (event, button) => Number(button.form.elements.quantity.value)
+      }
+    });
+    if (!quantity || Number.isNaN(quantity) || quantity < 1) return;
+    await requestRequisition({ memberId, uuid, quantity: Math.floor(quantity) });
   }
 
   _onClose(options) {
@@ -338,6 +505,12 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.render();
   }
 
+  static _onClearSearch() {
+    this.#structureQuery = "";
+    this.#restoreSearchFocus = true;
+    this.render();
+  }
+
   static _onExpandAll() {
     const ids = collectUnitIds(getArmyData().structure.army, 0);
     this.#collapsedUnits.clear();
@@ -374,6 +547,94 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     ui.notifications.info(game.i18n.format("ARMY.AdvancedNotice", { day: (data.day ?? 0) + 1 }));
   }
 
+  /**
+   * Pay a bonus to the whole roster. The dialog previews what each member
+   * would receive under every option, because week and month bonuses vary
+   * per character and the totals are otherwise invisible until it is done.
+   */
+  static async _onGrantBonus() {
+    if (!game.user.isGM) return;
+    const data = getArmyData();
+    if (!data.roster.length) {
+      ui.notifications.warn(game.i18n.localize("ARMY.RosterEmptyWarn"));
+      return;
+    }
+    const cfg = getConfig();
+    const esc = escapeHTML;
+    const loc = (k) => game.i18n.localize(k);
+
+    const preview = data.roster.map((m) => ({
+      name: memberName(m),
+      week: bonusFor(m, { mode: "week" }),
+      month: bonusFor(m, { mode: "month" })
+    }));
+    const sum = (key) => preview.reduce((t, r) => t + r[key], 0);
+
+    const rows = preview.map((r) => `
+      <tr><td>${esc(r.name)}</td><td style="text-align:right">${fmt(r.week)}</td>
+      <td style="text-align:right">${fmt(r.month)}</td></tr>`).join("");
+
+    const content = `
+      <p>${loc("ARMY.Bonus.prompt")}</p>
+      <div class="form-group">
+        <label>${loc("ARMY.Bonus.mode")}</label>
+        <select name="mode">
+          <option value="flat">${loc("ARMY.Bonus.modeFlat")}</option>
+          <option value="week">${game.i18n.format("ARMY.Bonus.modeWeek", { days: cfg.daysPerWeek })}</option>
+          <option value="month">${game.i18n.format("ARMY.Bonus.modeMonth", { days: cfg.daysPerMonth })}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>${game.i18n.format("ARMY.Bonus.amount", { currency: cfg.currency })}</label>
+        <input type="number" step="any" min="0" name="amount" value="0">
+      </div>
+      <label class="at-check" style="display:flex;gap:.4rem;align-items:center;margin:.25rem 0">
+        <input type="checkbox" name="clearDebtFirst" style="width:auto">
+        <span>${loc("ARMY.Bonus.debtFirst")}</span>
+      </label>
+      <p class="at-hint">${loc("ARMY.Bonus.basis")}</p>
+      <table class="at-bonus-preview">
+        <thead><tr>
+          <th>${loc("ARMY.Payday.name")}</th>
+          <th style="text-align:right">${loc("ARMY.Bonus.weekCol")}</th>
+          <th style="text-align:right">${loc("ARMY.Bonus.monthCol")}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <th>${loc("ARMY.Totals")}</th>
+          <th style="text-align:right">${fmt(sum("week"))}</th>
+          <th style="text-align:right">${fmt(sum("month"))}</th>
+        </tr></tfoot>
+      </table>`;
+
+    const result = await DialogV2.prompt({
+      window: { title: loc("ARMY.Bonus.title") },
+      content,
+      rejectClose: false,
+      ok: {
+        label: loc("ARMY.Bonus.grant"),
+        icon: "fa-solid fa-gift",
+        callback: (event, button) => ({
+          mode: button.form.elements.mode.value,
+          amount: Number(button.form.elements.amount.value),
+          clearDebtFirst: button.form.elements.clearDebtFirst.checked
+        })
+      }
+    });
+    if (!result) return;
+    if (result.mode === "flat" && !(result.amount > 0)) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Bonus.needAmount"));
+      return;
+    }
+
+    const outcome = await grantBonus(result);
+    if (outcome) {
+      ui.notifications.info(game.i18n.format("ARMY.Bonus.done", {
+        total: fmt(outcome.total), currency: cfg.currency, count: outcome.count
+      }));
+    }
+  }
+
   static async _onAdvanceDays() {
     if (!game.user.isGM) return;
     const data = getArmyData();
@@ -408,7 +669,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static async _onAddMember() {
     if (!game.user.isGM) return;
     const data = getArmyData();
-    const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
+    const esc = escapeHTML;
     const taken = new Set(data.roster.map((m) => m.actorId).filter(Boolean));
     const actors = game.actors.contents
       .filter((a) => !taken.has(a.id))
@@ -735,5 +996,10 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static _onOpenConfig() {
     new ArmyConfigApp().render({ force: true });
+  }
+
+  /** Read the level from stored data rather than the button, so it is never stale. */
+  static async _onOpenShop() {
+    await openArmyShop(getArmyData().structure.army?.level ?? 1);
   }
 }

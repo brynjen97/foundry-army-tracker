@@ -250,13 +250,86 @@
         "cohortsPerCompany": "Cohorts per company",
         "squadsPerCohort": "Squads per cohort",
         "soldiersPerSquad": "Soldiers per squad"
-      }
+      },
+      "requisitionTitle": "Requisition",
+      "requisitionApproval": "Require approval from the ranking party member",
+      "requisitionHint": "Player requisitions are sent to the highest-ranking member of the roster for sign-off before the item is handed over. Seniority follows the rank order above — the last rank is the most senior. GM requisitions are never held for approval, and neither is one made by the ranking member themselves.",
+      "currentApprover": "Approval currently rests with {name}.",
+      "noApprover": "No roster members yet, so there is nobody to approve requisitions."
     },
     "ExpandAll": "Expand all",
     "CollapseAll": "Collapse all",
     "ExpandAllTooltip": "Open every unit in the army.",
     "CollapseAllTooltip": "Close every unit, including the army itself.",
     "OfficerVacant": "{title} (unnamed)",
-    "PrimaryOfficerTooltip": "Commanding officer of this unit — the first in its officer list."
+    "PrimaryOfficerTooltip": "Commanding officer of this unit — the first in its officer list.",
+    "Level": "Level",
+    "LevelTooltip": "The army's level. On Pathfinder 2e this sets the ceiling for the shop browser.",
+    "Shop": {
+      "tooltip": "Browse common equipment up to the army's level",
+      "unavailable": "The Pathfinder 2e compendium browser isn't available in this world.",
+      "failed": "Could not open the compendium browser.",
+      "unfiltered": "Compendium browser opened, but the level and rarity filters could not be applied — filter to common items up to level {level} yourself."
+    },
+    "Bonus": {
+      "button": "Bonus",
+      "tooltip": "Pay a bonus to every member of the roster.",
+      "title": "Grant Party Bonus",
+      "grant": "Grant Bonus",
+      "prompt": "Pay a bonus to everyone on the roster. It goes straight into each member's camp vault.",
+      "mode": "Bonus type",
+      "modeFlat": "Flat amount — the same for everyone",
+      "modeWeek": "One week's pay ({days} days) — varies per member",
+      "modeMonth": "One month's pay ({days} days) — varies per member",
+      "amount": "Flat amount per member ({currency})",
+      "debtFirst": "Pay down outstanding debt first, banking only the remainder",
+      "basis": "Week and month bonuses are based on each member's base wage before deductions, so living costs don't eat into the reward.",
+      "weekCol": "1 week",
+      "monthCol": "1 month",
+      "col": "Bonus",
+      "needAmount": "Enter an amount greater than zero for a flat bonus.",
+      "header": {
+        "flat": "Bonus Paid",
+        "week": "Bonus Paid — One Week's Pay",
+        "month": "Bonus Paid — One Month's Pay"
+      },
+      "total": "{count} members paid, {total} {currency} in total.",
+      "done": "Bonus paid: {total} {currency} across {count} members."
+    },
+    "Requisition": {
+      "title": "Requisition Item",
+      "confirm": "Requisition",
+      "prompt": "Requisition <strong>{item}</strong> for {name}? The army covers the cost and it is added to their debt — their own coin is untouched.",
+      "unitPrice": "Price each",
+      "credit": "Credit remaining",
+      "quantity": "Quantity",
+      "note": "Requisitions draw on the same loan cap as cash loans, and are paid off the same way out of daily wages.",
+      "hint": "Drag an item onto this row to requisition it against army credit.",
+      "noActor": "Requisition needs a linked character to receive the item.",
+      "noItem": "That item could not be found.",
+      "noPrice": "{item} has no price, so it cannot be requisitioned.",
+      "noCredit": "This member has no army credit left — their debt is already at the cap.",
+      "overCap": "That exceeds the member's remaining army credit.",
+      "overCapDetail": "Cost {total} {currency}, credit remaining {capacity} {currency}.",
+      "failed": "The requisition could not be completed.",
+      "done": "Requisitioned {qty} × {item} for {total} {currency}, added to debt.",
+      "chatHeader": "Requisition",
+      "chat": "<strong>{name}</strong> requisitioned {qty} × {item} for {total} {currency} on army credit.",
+      "chatDebt": "Debt now {debt} {currency}; {remaining} {currency} credit remaining.",
+      "approvalTitle": "Requisition Approval",
+      "approvalPrompt": "<strong>{requester}</strong> requests {qty} × <strong>{item}</strong> on army credit, at a cost of {total} {currency}.",
+      "approvalNote": "You are being asked as {approver}, the ranking member of the party.",
+      "approve": "Approve",
+      "deny": "Deny",
+      "denied": "The requisition was denied by the ranking member.",
+      "pending": "Requisition sent to {approver} for approval."
+    },
+    "Search": {
+      "placeholder": "Search units and officers…",
+      "tooltip": "Filter the army by unit name (e.g. 5th Company) or by an officer's name or title (e.g. Helm, Aldric).",
+      "results": "{count} matching",
+      "clear": "Clear search",
+      "none": "Nothing in the army matches that search."
+    }
   }
 }

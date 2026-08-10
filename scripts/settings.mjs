@@ -35,6 +35,7 @@ export function registerSettings() {
     ["officerTitles", Object, {}],
     ["includeOfficers", Boolean, true],
     ["autoPopulate", Boolean, false],
+    ["requisitionApproval", Boolean, true],
     // Set once the GM's defaults have been written, so that a deliberately
     // emptied list is not mistaken for "never configured" and re-seeded.
     ["seeded", Boolean, false]
@@ -177,6 +178,11 @@ export function getCounts() {
 
 export function autoPopulateEnabled() {
   return game.settings.get(MODULE_ID, "autoPopulate") === true;
+}
+
+/** Whether requisitions must be signed off by the ranking party member. */
+export function requisitionApprovalRequired() {
+  return game.settings.get(MODULE_ID, "requisitionApproval") === true;
 }
 
 export function soldiersPerSquad() {

@@ -1,5 +1,6 @@
 import { COUNT_SETTINGS, LEVELS, MODULE_ID } from "./constants.mjs";
 import { round2 } from "./util.mjs";
+import { highestRankingMember, memberName } from "./data.mjs";
 import {
   builtinDeductions,
   builtinRanks,
@@ -63,6 +64,7 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
       officerTitles: { ...getOfficerTitles() },
       includeOfficers: game.settings.get(MODULE_ID, "includeOfficers") !== false,
       autoPopulate: game.settings.get(MODULE_ID, "autoPopulate") === true,
+      requisitionApproval: game.settings.get(MODULE_ID, "requisitionApproval") === true,
       counts: getCounts()
     };
     return this.#draft;
@@ -80,6 +82,12 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
         title: d.officerTitles[l.type] ?? ""
       })),
       autoPopulate: d.autoPopulate,
+      requisitionApproval: d.requisitionApproval,
+      // Name whoever currently holds sign-off, so the setting is concrete.
+      approverName: (() => {
+        const senior = highestRankingMember();
+        return senior ? memberName(senior) : null;
+      })(),
       counts: Object.keys(COUNT_SETTINGS).map((key) => ({
         key,
         value: d.counts[key],
@@ -120,6 +128,9 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
       case "autoPopulate":
         d.autoPopulate = el.checked;
         this.render();
+        break;
+      case "requisitionApproval":
+        d.requisitionApproval = el.checked;
         break;
       case "count": {
         const n = Math.max(0, Math.floor(Number(el.value) || 0));
@@ -223,6 +234,7 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await game.settings.set(MODULE_ID, "officerTitles", d.officerTitles);
     await game.settings.set(MODULE_ID, "includeOfficers", d.includeOfficers);
     await game.settings.set(MODULE_ID, "autoPopulate", d.autoPopulate);
+    await game.settings.set(MODULE_ID, "requisitionApproval", d.requisitionApproval);
     for (const [key, value] of Object.entries(d.counts)) {
       await game.settings.set(MODULE_ID, key, value);
     }

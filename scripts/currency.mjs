@@ -75,6 +75,41 @@ export async function takeFromActor(actor, gold) {
 }
 
 /**
+ * An item's unit price in gp.
+ * @returns {number|null} null when the item carries no price at all, which is
+ *   how a non-physical item (a feat, a spell) is told apart from a free one.
+ */
+export function itemPriceGold(item) {
+  const price = item?.system?.price?.value ?? item?.price?.value;
+  if (price === null || price === undefined) return null;
+  if (typeof price === "number") return round2(price);
+  if (typeof price !== "object") return null;
+  const pp = Number(price.pp) || 0;
+  const gp = Number(price.gp) || 0;
+  const sp = Number(price.sp) || 0;
+  const cp = Number(price.cp) || 0;
+  return round2(pp * 10 + gp + sp / 10 + cp / 100);
+}
+
+/**
+ * Put a copy of an item into an actor's inventory at the given quantity.
+ * @returns {Promise<boolean>} whether the item was created.
+ */
+export async function addItemToActor(actor, item, quantity = 1) {
+  if (!actor || !item) return false;
+  try {
+    const data = item.toObject();
+    const qty = Math.max(1, Math.floor(Number(quantity) || 1));
+    if (data.system && "quantity" in data.system) data.system.quantity = qty;
+    const created = await actor.createEmbeddedDocuments("Item", [data]);
+    return Array.isArray(created) ? created.length > 0 : !!created;
+  } catch (err) {
+    console.error("foundry-army-tracker | Could not add item to actor", err);
+    return false;
+  }
+}
+
+/**
  * Add coin to the actor's inventory.
  * @returns {Promise<boolean>} false when the coins could not be created.
  */

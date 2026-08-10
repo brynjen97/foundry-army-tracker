@@ -1,6 +1,6 @@
 import { LEVELS, MODULE_ID, SETTING_DATA } from "./constants.mjs";
-import { round2, fmt } from "./util.mjs";
-import { giveToActor, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
+import { round2, fmt, escapeHTML, docClass } from "./util.mjs";
+import { addItemToActor, giveToActor, itemPriceGold, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
 import {
   DEFAULT_STRUCTURE,
   getConfig,
@@ -11,11 +11,12 @@ import {
   getRanks,
   includeOfficers,
   registerSettings,
+  requisitionApprovalRequired,
   seedDefaults,
   soldiersPerSquad
 } from "./settings.mjs";
 
-export { round2, fmt, getConfig, registerSettings, seedDefaults, getRanks };
+export { round2, fmt, escapeHTML, getConfig, registerSettings, seedDefaults, getRanks };
 
 export const DEFAULT_DATA = () => ({ day: 0, roster: [], structure: DEFAULT_STRUCTURE() });
 
@@ -41,6 +42,7 @@ export function getArmyData() {
   army.id ??= foundry.utils.randomID();
   army.name ??= "";
   army.notes ??= "";
+  army.level ??= 1;
   army.officers ??= [];
   army.hosts ??= [];
   return data;
@@ -107,6 +109,19 @@ export function unitStrength(unit, depth) {
     return named || soldiersPerSquad();
   }
   return (unit[level.childKey] ?? []).reduce((sum, child) => sum + unitStrength(child, depth + 1), 0);
+}
+
+/**
+ * Whether a unit answers to a search term, by its own name or by any of its
+ * officers. Officer titles count as well as names, so searching "helm" finds
+ * every host commander rather than only people called Helm.
+ */
+export function unitMatches(unit, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  const hit = (value) => String(value ?? "").toLowerCase().includes(q);
+  if (hit(unit?.name)) return true;
+  return (unit?.officers ?? []).some((o) => hit(o.name) || hit(o.title));
 }
 
 /** Every unit id at or beneath this one, for bulk expand/collapse. */
@@ -263,6 +278,34 @@ export function onSocketMessage(message) {
       if (message.userId !== game.user.id) return;
       reportTransfer(message.result);
       return;
+    case "requisition":
+      if (!game.user.isGM || game.user !== game.users.activeGM) return;
+      routeRequisition(message);
+      return;
+    case "requisitionResult":
+      if (message.userId !== game.user.id) return;
+      reportRequisition(message.result);
+      return;
+    case "requisitionPending":
+      if (message.userId !== game.user.id) return;
+      reportPending(message.approverName);
+      return;
+    case "requisitionApproval":
+      // Only the ranking member's owner is asked; everyone else ignores it.
+      if (!message.approvers?.includes(game.user.id)) return;
+      promptApproval(message.request).then((approved) => {
+        game.socket.emit(`module.${MODULE_ID}`, {
+          type: "requisitionDecision",
+          requestId: message.request.requestId,
+          approved: approved === true,
+          userId: game.user.id
+        });
+      });
+      return;
+    case "requisitionDecision":
+      if (!game.user.isGM || game.user !== game.users.activeGM) return;
+      onRequisitionDecision(message);
+      return;
   }
 }
 
@@ -316,18 +359,18 @@ export async function performTransfer({ memberId, direction, amount, userId }) {
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
   const cfg = getConfig();
-  await ChatMessage.create({
+  await docClass("ChatMessage").create({
     content: `
       <div class="at-payday">
         <h3><i class="fa-solid fa-vault"></i> ${game.i18n.localize("ARMY.Transfer.chatHeader")}</h3>
         <p>${game.i18n.format(`ARMY.Transfer.chat.${direction}`, {
-          name: Handlebars.escapeExpression(name),
+          name: escapeHTML(name),
           amount: fmt(amount),
-          currency: Handlebars.escapeExpression(cfg.currency)
+          currency: escapeHTML(cfg.currency)
         })}</p>
         <p class="at-currency-note">${game.i18n.format("ARMY.Transfer.chatBalance", {
           vault: fmt(member.vault),
-          currency: Handlebars.escapeExpression(cfg.currency)
+          currency: escapeHTML(cfg.currency)
         })}</p>
       </div>`,
     speaker: { alias: game.i18n.localize("ARMY.Payday.speaker") }
@@ -349,6 +392,286 @@ export function reportTransfer(result) {
     currency: cfg.currency,
     vault: fmt(result.vault)
   }));
+}
+
+/* -------------------------------------------- */
+/*  Chain of command                            */
+/* -------------------------------------------- */
+
+/**
+ * The senior member of the roster.
+ *
+ * Seniority comes from the order of the configured rank list — the last rank
+ * is the most senior — so the GM controls it by arranging ranks in the config
+ * menu. Ties are broken by effective wage, then by roster order, so the answer
+ * is stable rather than depending on iteration luck.
+ */
+export function highestRankingMember(roster = null) {
+  const list = roster ?? getArmyData().roster;
+  if (!list?.length) return null;
+  const order = new Map(getRanks().map((r, i) => [r.id, i]));
+  let best = null;
+  let bestRank = -Infinity;
+  let bestWage = -Infinity;
+  for (const member of list) {
+    const rank = order.has(member.rank) ? order.get(member.rank) : -1;
+    const wage = round2(effectiveWage(member));
+    if (rank > bestRank || (rank === bestRank && wage > bestWage)) {
+      best = member;
+      bestRank = rank;
+      bestWage = wage;
+    }
+  }
+  return best;
+}
+
+/** Online, non-GM users who own the member's character. */
+function ownersOnline(member) {
+  if (!member?.actorId) return [];
+  const actor = game.actors.get(member.actorId);
+  if (!actor) return [];
+  return game.users
+    .filter((u) => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
+    .map((u) => u.id);
+}
+
+/* -------------------------------------------- */
+/*  Requisition                                 */
+/* -------------------------------------------- */
+
+/**
+ * Draw an item against the army's credit rather than the character's purse.
+ *
+ * Mechanically this is a loan spent at the point of purchase: the item goes
+ * into the character's inventory and its price is added to their debt, so it
+ * is bound by the same cap as a cash loan and is paid off the same way, out
+ * of daily wages. The character's own coin is never touched.
+ */
+export async function performRequisition({ memberId, uuid, quantity, userId }) {
+  const data = getArmyData();
+  const member = data.roster.find((m) => m.id === memberId);
+  if (!member) return { ok: false, error: "ARMY.Transfer.NoMember" };
+
+  const user = game.users.get(userId);
+  if (!user) return { ok: false, error: "ARMY.Transfer.NoUser" };
+
+  const actor = member.actorId ? game.actors.get(member.actorId) : null;
+  if (!actor) return { ok: false, error: "ARMY.Requisition.noActor" };
+  if (!user.isGM && !actor.testUserPermission(user, "OWNER")) {
+    return { ok: false, error: "ARMY.Transfer.NotOwner" };
+  }
+
+  const item = await globalThis.fromUuid?.(uuid);
+  if (!item) return { ok: false, error: "ARMY.Requisition.noItem" };
+
+  const unit = itemPriceGold(item);
+  if (unit === null) return { ok: false, error: "ARMY.Requisition.noPrice" };
+
+  const qty = Math.max(1, Math.floor(Number(quantity) || 1));
+  const total = round2(unit * qty);
+
+  const cfg = getConfig();
+  const pay = computePay(member);
+  const debt = round2(member.debt ?? 0);
+  const capacity = round2(pay.maxLoan - debt);
+  if (total > capacity) {
+    return {
+      ok: false,
+      error: "ARMY.Requisition.overCap",
+      detail: game.i18n.format("ARMY.Requisition.overCapDetail", {
+        total: fmt(total), capacity: fmt(Math.max(0, capacity)), currency: cfg.currency
+      })
+    };
+  }
+
+  // Hand over the goods before recording the debt, so a failed creation
+  // cannot leave a character owing money for an item they never received.
+  if (!(await addItemToActor(actor, item, qty))) {
+    return { ok: false, error: "ARMY.Requisition.failed" };
+  }
+  member.debt = round2(debt + total);
+  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+
+  await docClass("ChatMessage").create({
+    content: `
+      <div class="at-payday">
+        <h3><i class="fa-solid fa-clipboard-check"></i> ${game.i18n.localize("ARMY.Requisition.chatHeader")}</h3>
+        <p>${game.i18n.format("ARMY.Requisition.chat", {
+          name: escapeHTML(memberName(member)),
+          item: escapeHTML(item.name),
+          qty,
+          total: fmt(total),
+          currency: escapeHTML(cfg.currency)
+        })}</p>
+        <p class="at-currency-note">${game.i18n.format("ARMY.Requisition.chatDebt", {
+          debt: fmt(member.debt),
+          remaining: fmt(round2(capacity - total)),
+          currency: escapeHTML(cfg.currency)
+        })}</p>
+      </div>`,
+    speaker: { alias: game.i18n.localize("ARMY.Payday.speaker") }
+  });
+
+  return {
+    ok: true,
+    item: item.name,
+    qty,
+    total,
+    debt: member.debt,
+    remaining: round2(capacity - total)
+  };
+}
+
+/* -------------------------------------------- */
+/*  Requisition approval                        */
+/* -------------------------------------------- */
+
+/** Requests awaiting sign-off, held on the GM's client only. */
+const pendingRequisitions = new Map();
+
+/** Requests are dropped rather than left hanging if nobody answers. */
+const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
+
+function prunePending() {
+  const cutoff = Date.now() - APPROVAL_TIMEOUT_MS;
+  for (const [id, entry] of pendingRequisitions) {
+    if (entry.at < cutoff) pendingRequisitions.delete(id);
+  }
+}
+
+/**
+ * Decide whether a requisition needs sign-off, and either run it or send the
+ * request to the ranking member. Runs on the active GM, so the approval step
+ * cannot be skipped by a player editing their own client.
+ */
+export async function routeRequisition(message) {
+  prunePending();
+  const requester = game.users.get(message.userId);
+
+  // The GM is the authority here, so their own requisitions do not queue.
+  if (!requisitionApprovalRequired() || requester?.isGM) {
+    return respondRequisition(message.userId, await performRequisition(message));
+  }
+
+  const data = getArmyData();
+  const approver = highestRankingMember(data.roster);
+
+  // Nobody outranks the requester, so there is no one to ask.
+  if (!approver || approver.id === message.memberId) {
+    return respondRequisition(message.userId, await performRequisition(message));
+  }
+
+  // Preview the cost so the approver sees what they are signing off.
+  const item = await globalThis.fromUuid?.(message.uuid);
+  const unit = itemPriceGold(item);
+  if (!item || unit === null) {
+    return respondRequisition(message.userId, await performRequisition(message));
+  }
+
+  const member = data.roster.find((m) => m.id === message.memberId);
+  const qty = Math.max(1, Math.floor(Number(message.quantity) || 1));
+  const approvers = ownersOnline(approver);
+  const request = {
+    requestId: foundry.utils.randomID(),
+    requesterName: memberName(member ?? {}),
+    approverName: memberName(approver),
+    item: item.name,
+    qty,
+    total: round2(unit * qty)
+  };
+
+  // With no player at the keyboard for the ranking member, the GM signs off.
+  if (!approvers.length) {
+    const approved = await promptApproval(request);
+    return respondRequisition(message.userId, approved
+      ? await performRequisition(message)
+      : { ok: false, error: "ARMY.Requisition.denied" });
+  }
+
+  pendingRequisitions.set(request.requestId, {
+    payload: message, approvers, at: Date.now()
+  });
+  game.socket.emit(`module.${MODULE_ID}`, {
+    type: "requisitionApproval", approvers, request
+  });
+  game.socket.emit(`module.${MODULE_ID}`, {
+    type: "requisitionPending", userId: message.userId, approverName: request.approverName
+  });
+  if (message.userId === game.user.id) reportPending(request.approverName);
+}
+
+/** Handle a decision coming back from the ranking member's client. */
+export async function onRequisitionDecision(message) {
+  const entry = pendingRequisitions.get(message.requestId);
+  if (!entry) return; // already answered, or expired
+  // Only a user who was actually asked may answer.
+  if (!entry.approvers.includes(message.userId)) return;
+  pendingRequisitions.delete(message.requestId);
+
+  respondRequisition(entry.payload.userId, message.approved
+    ? await performRequisition(entry.payload)
+    : { ok: false, error: "ARMY.Requisition.denied" });
+}
+
+/** Show the approval prompt and return the decision. */
+export async function promptApproval(request) {
+  const cfg = getConfig();
+  const { DialogV2 } = foundry.applications.api;
+  return DialogV2.confirm({
+    window: { title: game.i18n.localize("ARMY.Requisition.approvalTitle") },
+    content: `
+      <p>${game.i18n.format("ARMY.Requisition.approvalPrompt", {
+        requester: escapeHTML(request.requesterName),
+        qty: request.qty,
+        item: escapeHTML(request.item),
+        total: fmt(request.total),
+        currency: escapeHTML(cfg.currency)
+      })}</p>
+      <p class="at-hint">${game.i18n.format("ARMY.Requisition.approvalNote", {
+        approver: escapeHTML(request.approverName)
+      })}</p>`,
+    yes: { label: game.i18n.localize("ARMY.Requisition.approve"), icon: "fa-solid fa-check" },
+    no: { label: game.i18n.localize("ARMY.Requisition.deny"), icon: "fa-solid fa-xmark" },
+    rejectClose: false,
+    modal: true
+  });
+}
+
+function respondRequisition(userId, result) {
+  if (userId === game.user.id) return reportRequisition(result);
+  game.socket.emit(`module.${MODULE_ID}`, { type: "requisitionResult", userId, result });
+}
+
+export function reportPending(approverName) {
+  ui.notifications.info(game.i18n.format("ARMY.Requisition.pending", { approver: approverName }));
+}
+
+export function reportRequisition(result) {
+  if (!result) return;
+  const cfg = getConfig();
+  if (!result.ok) {
+    const base = game.i18n.localize(result.error ?? "ARMY.Requisition.failed");
+    ui.notifications.warn(result.detail ? `${base} ${result.detail}` : base);
+    return;
+  }
+  ui.notifications.info(game.i18n.format("ARMY.Requisition.done", {
+    item: result.item, qty: result.qty, total: fmt(result.total), currency: cfg.currency
+  }));
+}
+
+/** Request a requisition: GMs route it locally, players relay to the active GM. */
+export async function requestRequisition({ memberId, uuid, quantity }) {
+  if (game.user.isGM) {
+    await routeRequisition({ memberId, uuid, quantity, userId: game.user.id });
+    return;
+  }
+  if (!game.users.activeGM) {
+    ui.notifications.warn(game.i18n.localize("ARMY.NoGM"));
+    return;
+  }
+  game.socket.emit(`module.${MODULE_ID}`, {
+    type: "requisition", memberId, uuid, quantity, userId: game.user.id
+  });
 }
 
 /** Request a transfer: GMs run it directly, players relay it to the active GM. */
@@ -425,7 +748,7 @@ export async function advanceDay(days = 1) {
   data.day = (data.day ?? 0) + days;
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
-  const esc = (s) => Handlebars.escapeExpression(String(s ?? ""));
+  const esc = escapeHTML;
   const signed = (v) => (v > 0 ? `+${fmt(v)}` : fmt(v));
   const deltaClass = (v, goodWhenPositive) => {
     if (v === 0) return "";
@@ -470,8 +793,116 @@ export async function advanceDay(days = 1) {
       ` : `<p>${loc("ARMY.Payday.empty")}</p>`}
     </div>`;
 
-  await ChatMessage.create({
+  await docClass("ChatMessage").create({
     content,
     speaker: { alias: loc("ARMY.Payday.speaker") }
   });
+}
+
+/* -------------------------------------------- */
+/*  Bonuses                                     */
+/* -------------------------------------------- */
+
+/**
+ * What a single member would receive from a bonus.
+ *
+ * Week and month bonuses are worked out from the member's *base* wage rather
+ * than their net pay. A bonus is a reward on top of their wages, so daily
+ * living costs should not eat into it — and it means a member whose
+ * deductions exceed their wage still receives something rather than a
+ * negative "bonus".
+ */
+export function bonusFor(member, { mode, amount = 0 }) {
+  const cfg = getConfig();
+  const base = round2(effectiveWage(member));
+  let value;
+  switch (mode) {
+    case "week": value = base * cfg.daysPerWeek; break;
+    case "month": value = base * cfg.daysPerMonth; break;
+    default: value = Number(amount) || 0;
+  }
+  return Math.max(0, round2(value));
+}
+
+/**
+ * Pay a bonus to every member of the roster (GM only).
+ * Goes straight into each member's camp vault unless clearDebtFirst is set,
+ * in which case it pays down debt first the way ordinary wages do.
+ */
+export async function grantBonus({ mode, amount = 0, clearDebtFirst = false }) {
+  if (!game.user.isGM) return null;
+  const data = getArmyData();
+  const cfg = getConfig();
+  const rows = [];
+  let total = 0;
+
+  for (const member of data.roster) {
+    const bonus = bonusFor(member, { mode, amount });
+    const oldDebt = round2(member.debt ?? 0);
+    let debt = oldDebt;
+    let vault = round2(member.vault ?? 0);
+
+    if (clearDebtFirst) {
+      const towardDebt = Math.min(debt, bonus);
+      debt = round2(debt - towardDebt);
+      vault = round2(vault + (bonus - towardDebt));
+    } else {
+      vault = round2(vault + bonus);
+    }
+
+    member.debt = debt;
+    member.vault = vault;
+    total = round2(total + bonus);
+    rows.push({
+      name: memberName(member),
+      bonus,
+      debtDelta: round2(debt - oldDebt),
+      vault,
+      debt
+    });
+  }
+
+  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+
+  const esc = escapeHTML;
+  const loc = (k) => game.i18n.localize(k);
+  const body = rows.map((r) => `
+    <tr>
+      <td class="at-c-name">${esc(r.name)}</td>
+      <td class="${r.bonus ? "at-pos" : ""}">${r.bonus ? `+${fmt(r.bonus)}` : fmt(0)}</td>
+      <td class="${r.debtDelta < 0 ? "at-pos" : ""}">${r.debtDelta ? fmt(r.debtDelta) : "—"}</td>
+      <td>${fmt(r.vault)}</td>
+      <td>${fmt(r.debt)}</td>
+    </tr>`).join("");
+
+  const content = `
+    <div class="at-payday">
+      <h3><i class="fa-solid fa-gift"></i> ${loc(`ARMY.Bonus.header.${mode}`)}</h3>
+      ${rows.length ? `
+      <div class="at-payday-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="at-c-name">${loc("ARMY.Payday.name")}</th>
+            <th>${loc("ARMY.Bonus.col")}</th>
+            <th>${loc("ARMY.Payday.debtDelta")}</th>
+            <th>${loc("ARMY.Payday.vault")}</th>
+            <th>${loc("ARMY.Payday.debt")}</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+      </div>
+      <p class="at-currency-note">${game.i18n.format("ARMY.Bonus.total", {
+        total: fmt(total), currency: esc(cfg.currency), count: rows.length
+      })}</p>
+      ` : `<p>${loc("ARMY.Payday.empty")}</p>`}
+    </div>`;
+
+  await docClass("ChatMessage").create({
+    content,
+    speaker: { alias: loc("ARMY.Payday.speaker") }
+  });
+
+  return { total, count: rows.length };
 }

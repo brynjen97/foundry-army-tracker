@@ -15,8 +15,16 @@ Hooks.once("init", () => {
     restricted: true
   });
 
-  const load = foundry.applications?.handlebars?.loadTemplates ?? loadTemplates;
-  load([`modules/${MODULE_ID}/templates/unit.hbs`]);
+  // loadTemplates moved under foundry.applications.handlebars and the bare
+  // global is on its way out; reach for the namespaced one first and treat
+  // its absence as non-fatal, since the partial also loads on first render.
+  const load = foundry.applications?.handlebars?.loadTemplates ?? globalThis.loadTemplates;
+  if (typeof load === "function") {
+    Promise.resolve(load([`modules/${MODULE_ID}/templates/unit.hbs`]))
+      .catch((err) => console.error(`${MODULE_ID} | Could not preload templates`, err));
+  } else {
+    console.warn(`${MODULE_ID} | No loadTemplates available; partials will load on demand.`);
+  }
 
   game.keybindings.register(MODULE_ID, "openTracker", {
     name: "ARMY.Keybind.open",
@@ -41,19 +49,60 @@ Hooks.once("ready", async () => {
   await seedDefaults();
 });
 
-/** Add an "Army Tracker" button to the Actors directory (works with both v12 jQuery and v13 HTMLElement hooks). */
-Hooks.on("renderActorDirectory", (app, html) => {
-  const root = html instanceof HTMLElement ? html : html?.[0];
-  if (!root || root.querySelector(".at-open-button")) return;
-  const header = root.querySelector(".directory-header .header-actions")
-    ?? root.querySelector(".directory-header")
-    ?? root;
+/** The hook's second argument is jQuery on v12 and an HTMLElement from v13 on. */
+function rootElement(html) {
+  if (html instanceof HTMLElement) return html;
+  if (html?.[0] instanceof HTMLElement) return html[0];
+  return null;
+}
+
+function makeOpenButton() {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "at-open-button";
   button.innerHTML = `<i class="fa-solid fa-flag"></i> <span>${game.i18n.localize("ARMY.OpenButton")}</span>`;
   button.addEventListener("click", () => ArmyTrackerApp.open());
-  header.append(button);
+  return button;
+}
+
+/**
+ * Add an "Army Tracker" button to the Actors directory.
+ * Sidebar markup shifts between major versions, so several known header
+ * shapes are tried before falling back to the directory root — appearing in
+ * an odd spot beats not appearing at all. Wrapped so a failure here cannot
+ * break other listeners on the same hook.
+ */
+Hooks.on("renderActorDirectory", (app, html) => {
+  try {
+    const root = rootElement(html);
+    if (!root || root.querySelector(".at-open-button")) return;
+    const header = root.querySelector(".directory-header .header-actions")
+      ?? root.querySelector(".directory-header .action-buttons")
+      ?? root.querySelector(".directory-header")
+      ?? root.querySelector("header")
+      ?? root;
+    header.append(makeOpenButton());
+  } catch (err) {
+    console.error(`${MODULE_ID} | Could not add the directory button`, err);
+  }
+});
+
+/**
+ * A second way in, from the Game Settings sidebar. Cheap insurance: if the
+ * actors-directory markup changes and that button lands somewhere useless,
+ * the tracker is still reachable without resorting to a macro.
+ */
+Hooks.on("renderSettings", (app, html) => {
+  try {
+    const root = rootElement(html);
+    if (!root || root.querySelector(".at-open-button")) return;
+    const section = document.createElement("div");
+    section.className = "at-settings-entry";
+    section.append(makeOpenButton());
+    (root.querySelector("#settings-game") ?? root).append(section);
+  } catch (err) {
+    console.error(`${MODULE_ID} | Could not add the settings button`, err);
+  }
 });
 
 /** World settings sync to every client; re-render the tracker whenever our data changes anywhere. */

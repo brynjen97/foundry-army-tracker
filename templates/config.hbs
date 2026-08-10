@@ -98,6 +98,20 @@
     </fieldset>
 
     <fieldset class="at-config-section">
+      <legend><i class="fa-solid fa-clipboard-check"></i> {{localize "ARMY.Config.requisitionTitle"}}</legend>
+      <label class="at-check">
+        <input type="checkbox" data-field="requisitionApproval" {{#if requisitionApproval}}checked{{/if}}>
+        <span>{{localize "ARMY.Config.requisitionApproval"}}</span>
+      </label>
+      <p class="at-hint">{{localize "ARMY.Config.requisitionHint"}}</p>
+      {{#if approverName}}
+      <p class="at-hint"><strong>{{localize "ARMY.Config.currentApprover" name=approverName}}</strong></p>
+      {{else}}
+      <p class="at-hint">{{localize "ARMY.Config.noApprover"}}</p>
+      {{/if}}
+    </fieldset>
+
+    <fieldset class="at-config-section">
       <legend><i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "ARMY.Config.generateTitle"}}</legend>
       <label class="at-check">
         <input type="checkbox" data-field="autoPopulate" {{#if autoPopulate}}checked{{/if}}>
