@@ -7,6 +7,7 @@ import {
   MODULE_ID,
   SETTING_DATA
 } from "./constants.mjs";
+import { UPKEEP_DEFAULTS } from "./treasure.mjs";
 
 /**
  * Settings live in two places:
@@ -36,6 +37,12 @@ export function registerSettings() {
     ["includeOfficers", Boolean, true],
     ["autoPopulate", Boolean, false],
     ["requisitionApproval", Boolean, true],
+    // Army treasury: whether it is tracked at all, whether Advance Day draws
+    // from it, and who besides the GM is allowed to look at it.
+    ["treasuryEnabled", Boolean, true],
+    ["chargeUpkeep", Boolean, true],
+    ["financeVisibility", String, "gm"],
+    ["financeMinRank", String, ""],
     // Set once the GM's defaults have been written, so that a deliberately
     // emptied list is not mistaken for "never configured" and re-seeded.
     ["seeded", Boolean, false]
@@ -48,11 +55,16 @@ export function registerSettings() {
     game.settings.register(MODULE_ID, key, { scope: "world", config: false, type: Number, default: def });
   }
 
+  for (const [key, def] of Object.entries(UPKEEP_DEFAULTS)) {
+    game.settings.register(MODULE_ID, key, { scope: "world", config: false, type: Number, default: def });
+  }
+
   const scalars = [
     ["daysPerWeek", 7],
     ["daysPerMonth", 30],
     ["daysPerYear", 360],
-    ["loanMonths", 6]
+    ["loanMonths", 6],
+    ["ledgerCap", 500]
   ];
   for (const [key, def] of scalars) {
     game.settings.register(MODULE_ID, key, {
@@ -199,6 +211,7 @@ export function getConfig() {
     daysPerMonth: game.settings.get(MODULE_ID, "daysPerMonth"),
     daysPerYear: game.settings.get(MODULE_ID, "daysPerYear"),
     loanMonths: game.settings.get(MODULE_ID, "loanMonths"),
-    currency: game.settings.get(MODULE_ID, "currency")
+    currency: game.settings.get(MODULE_ID, "currency"),
+    ledgerCap: game.settings.get(MODULE_ID, "ledgerCap")
   };
 }

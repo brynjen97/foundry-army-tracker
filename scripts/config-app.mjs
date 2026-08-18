@@ -1,5 +1,6 @@
 import { COUNT_SETTINGS, LEVELS, MODULE_ID } from "./constants.mjs";
-import { round2 } from "./util.mjs";
+import { round2, fmt } from "./util.mjs";
+import { COST_OF_LIVING } from "./treasure.mjs";
 import { highestRankingMember, memberName } from "./data.mjs";
 import {
   builtinDeductions,
@@ -65,6 +66,12 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
       includeOfficers: game.settings.get(MODULE_ID, "includeOfficers") !== false,
       autoPopulate: game.settings.get(MODULE_ID, "autoPopulate") === true,
       requisitionApproval: game.settings.get(MODULE_ID, "requisitionApproval") === true,
+      treasuryEnabled: game.settings.get(MODULE_ID, "treasuryEnabled") !== false,
+      chargeUpkeep: game.settings.get(MODULE_ID, "chargeUpkeep") !== false,
+      upkeepPerSoldier: round2(game.settings.get(MODULE_ID, "upkeepPerSoldier")),
+      upkeepPerOfficer: round2(game.settings.get(MODULE_ID, "upkeepPerOfficer")),
+      financeVisibility: game.settings.get(MODULE_ID, "financeVisibility") ?? "gm",
+      financeMinRank: game.settings.get(MODULE_ID, "financeMinRank") ?? "",
       counts: getCounts()
     };
     return this.#draft;
@@ -83,6 +90,29 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
       })),
       autoPopulate: d.autoPopulate,
       requisitionApproval: d.requisitionApproval,
+      treasuryEnabled: d.treasuryEnabled,
+      chargeUpkeep: d.chargeUpkeep,
+      upkeepPerSoldier: d.upkeepPerSoldier,
+      upkeepPerOfficer: d.upkeepPerOfficer,
+      financeVisibility: d.financeVisibility,
+      byRank: d.financeVisibility === "rank",
+      visibilityOptions: {
+        gm: game.i18n.localize("ARMY.Treasury.visibility.gm"),
+        rank: game.i18n.localize("ARMY.Treasury.visibility.rank"),
+        all: game.i18n.localize("ARMY.Treasury.visibility.all")
+      },
+      rankOptions: Object.fromEntries(d.ranks.map((r) => [r.id, r.label])),
+      financeMinRank: d.financeMinRank,
+      // Spell out what the current upkeep rates cost, since the abstract
+      // "0.2 per soldier" only becomes real once multiplied by an army.
+      upkeepExample: game.i18n.format("ARMY.Config.upkeepExample", {
+        soldiers: 100,
+        cost: fmt(round2(d.upkeepPerSoldier * 100))
+      }),
+      costOfLiving: game.i18n.format("ARMY.Config.costOfLiving", {
+        subsistence: fmt(COST_OF_LIVING.subsistence),
+        comfortable: fmt(COST_OF_LIVING.comfortable)
+      }),
       // Name whoever currently holds sign-off, so the setting is concrete.
       approverName: (() => {
         const senior = highestRankingMember();
@@ -131,6 +161,22 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
         break;
       case "requisitionApproval":
         d.requisitionApproval = el.checked;
+        break;
+      case "treasuryEnabled":
+        d.treasuryEnabled = el.checked;
+        this.render();
+        break;
+      case "chargeUpkeep":
+        d.chargeUpkeep = el.checked;
+        break;
+      case "upkeepPerSoldier": d.upkeepPerSoldier = Math.max(0, round2(el.value)); break;
+      case "upkeepPerOfficer": d.upkeepPerOfficer = Math.max(0, round2(el.value)); break;
+      case "financeVisibility":
+        d.financeVisibility = el.value;
+        this.render();
+        break;
+      case "financeMinRank":
+        d.financeMinRank = el.value;
         break;
       case "count": {
         const n = Math.max(0, Math.floor(Number(el.value) || 0));
@@ -235,6 +281,15 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await game.settings.set(MODULE_ID, "includeOfficers", d.includeOfficers);
     await game.settings.set(MODULE_ID, "autoPopulate", d.autoPopulate);
     await game.settings.set(MODULE_ID, "requisitionApproval", d.requisitionApproval);
+    await game.settings.set(MODULE_ID, "treasuryEnabled", d.treasuryEnabled);
+    await game.settings.set(MODULE_ID, "chargeUpkeep", d.chargeUpkeep);
+    await game.settings.set(MODULE_ID, "upkeepPerSoldier", Math.max(0, round2(d.upkeepPerSoldier)));
+    await game.settings.set(MODULE_ID, "upkeepPerOfficer", Math.max(0, round2(d.upkeepPerOfficer)));
+    await game.settings.set(MODULE_ID, "financeVisibility", d.financeVisibility);
+    // A rank threshold pointing at a rank that has since been deleted would
+    // silently lock everyone out, so fall back to the most senior one.
+    await game.settings.set(MODULE_ID, "financeMinRank",
+      ranks.some((r) => r.id === d.financeMinRank) ? d.financeMinRank : (ranks[ranks.length - 1]?.id ?? ""));
     for (const [key, value] of Object.entries(d.counts)) {
       await game.settings.set(MODULE_ID, key, value);
     }

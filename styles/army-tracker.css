@@ -799,3 +799,140 @@
   opacity: 0.7;
   font-style: italic;
 }
+
+/* ========================================================= */
+/*  War chest                                                */
+/* ========================================================= */
+
+.army-tracker .at-undo {
+  width: auto;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--at-border);
+  border-radius: 4px;
+  background: transparent;
+}
+
+.army-tracker .at-undo:hover {
+  border-color: var(--at-accent-strong);
+}
+
+.army-tracker .at-treasury {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* The headline figure: the one number the whole tab exists to show. */
+.army-tracker .at-chest {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--at-border);
+  border-left: 4px solid var(--at-accent-strong);
+  border-radius: 4px;
+  background: var(--at-panel-bg);
+}
+
+.army-tracker .at-chest.at-arrears {
+  border-left-color: var(--at-neg);
+}
+
+.army-tracker .at-chest-label {
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+
+.army-tracker .at-chest-figure {
+  font-size: 2em;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.army-tracker .at-chest-figure span {
+  font-size: 0.5em;
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+.army-tracker .at-chest.at-arrears .at-chest-figure {
+  color: var(--at-neg);
+}
+
+.army-tracker .at-chest-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.9em;
+  opacity: 0.85;
+}
+
+.army-tracker .at-treasury-actions {
+  flex-wrap: wrap;
+}
+
+.army-tracker .at-finance-toggle {
+  margin-left: auto;
+}
+
+.army-tracker .at-unit-assign select {
+  max-width: 60%;
+}
+
+/* Party members posted to a unit, shown on its header. */
+.army-tracker .at-unit-posted {
+  font-size: 0.85em;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+}
+
+/* ========================================================= */
+/*  Ledger                                                   */
+/* ========================================================= */
+
+.army-tracker .at-ledger-filters {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.army-tracker .at-ledger-filters select {
+  width: auto;
+  flex: 0 1 12rem;
+}
+
+.army-tracker .at-ledger-table .at-col-day {
+  width: 3.5rem;
+  text-align: right;
+  opacity: 0.7;
+}
+
+.army-tracker .at-ledger-entry i {
+  width: 1.1rem;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* The note carries the detail — which item, which city — so it reads as a
+   continuation of the entry name rather than a column of its own. */
+.army-tracker .at-ledger-note {
+  display: block;
+  font-size: 0.85em;
+  opacity: 0.7;
+  padding-left: 1.35rem;
+}
+
+.army-tracker .at-ledger-target {
+  display: block;
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.army-tracker .at-ledger-row.at-scope-army {
+  background: var(--at-panel-bg);
+}
+
+.army-tracker .at-ledger-row:hover {
+  background: var(--at-row-hover);
+}

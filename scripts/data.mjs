@@ -1,24 +1,39 @@
-import { LEVELS, MODULE_ID, SETTING_DATA } from "./constants.mjs";
+import { MODULE_ID, SETTING_DATA } from "./constants.mjs";
 import { round2, fmt, escapeHTML, docClass } from "./util.mjs";
 import { addItemToActor, giveToActor, itemPriceGold, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
+import { record, snapshot } from "./ledger.mjs";
+import { unitPath } from "./structure.mjs";
+import {
+  applyToTreasury,
+  armyUpkeep,
+  chargeUpkeepEnabled,
+  DEFAULT_TREASURY,
+  financeAudience,
+  getTreasury,
+  shareSplit,
+  treasuryEnabled
+} from "./treasury.mjs";
 import {
   DEFAULT_STRUCTURE,
   getConfig,
-  getCounts,
   getDeductionTemplate,
-  getOfficerTitles,
   getRank,
   getRanks,
-  includeOfficers,
   registerSettings,
   requisitionApprovalRequired,
-  seedDefaults,
-  soldiersPerSquad
+  seedDefaults
 } from "./settings.mjs";
 
 export { round2, fmt, escapeHTML, getConfig, registerSettings, seedDefaults, getRanks };
+export { getTreasury, armyUpkeep, treasuryEnabled, canSeeFinances } from "./treasury.mjs";
 
-export const DEFAULT_DATA = () => ({ day: 0, roster: [], structure: DEFAULT_STRUCTURE() });
+export const DEFAULT_DATA = () => ({
+  day: 0,
+  roster: [],
+  structure: DEFAULT_STRUCTURE(),
+  treasury: DEFAULT_TREASURY(),
+  ledger: []
+});
 
 /* -------------------------------------------- */
 /*  Data access                                 */
@@ -29,6 +44,8 @@ export function getArmyData() {
   const data = foundry.utils.mergeObject(DEFAULT_DATA(), stored, { inplace: false });
   data.roster ??= [];
   data.structure ??= {};
+  data.ledger ??= [];
+  data.treasury = getTreasury(data);
 
   // Pre-army-level worlds stored hosts at the root; adopt them under the army.
   if (Array.isArray(data.structure.hosts) && !data.structure.army) {
@@ -87,117 +104,20 @@ export function computePay(member) {
 }
 
 /* -------------------------------------------- */
-/*  Army strength                               */
+/*  Army structure                              */
 /* -------------------------------------------- */
 
-/**
- * How many soldiers a unit contains.
- *
- * A squad counts the soldiers actually named in it; when none have been
- * recorded it falls back to the configured squad size, so a freshly generated
- * army still reports a realistic strength. Every level above a squad is the
- * sum of its children, which is what makes the figure roll all the way up to
- * the army itself.
- *
- * Officers are counted separately — they lead the soldiers rather than
- * padding the headcount.
- */
-export function unitStrength(unit, depth) {
-  const level = LEVELS[depth];
-  if (!level?.childKey) {
-    const named = (unit.members ?? []).length;
-    return named || soldiersPerSquad();
-  }
-  return (unit[level.childKey] ?? []).reduce((sum, child) => sum + unitStrength(child, depth + 1), 0);
-}
-
-/**
- * Whether a unit answers to a search term, by its own name or by any of its
- * officers. Officer titles count as well as names, so searching "helm" finds
- * every host commander rather than only people called Helm.
- */
-export function unitMatches(unit, query) {
-  if (!query) return true;
-  const q = query.toLowerCase();
-  const hit = (value) => String(value ?? "").toLowerCase().includes(q);
-  if (hit(unit?.name)) return true;
-  return (unit?.officers ?? []).some((o) => hit(o.name) || hit(o.title));
-}
-
-/** Every unit id at or beneath this one, for bulk expand/collapse. */
-export function collectUnitIds(unit, depth, out = []) {
-  if (!unit) return out;
-  out.push(unit.id);
-  const level = LEVELS[depth];
-  if (level?.childKey) {
-    for (const child of unit[level.childKey] ?? []) collectUnitIds(child, depth + 1, out);
-  }
-  return out;
-}
-
-/** How many officers sit at this unit and every unit beneath it. */
-export function officerCount(unit, depth) {
-  const level = LEVELS[depth];
-  const own = (unit.officers ?? []).length;
-  if (!level?.childKey) return own;
-  return (unit[level.childKey] ?? []).reduce((sum, child) => sum + officerCount(child, depth + 1), own);
-}
-
-/* -------------------------------------------- */
-/*  Army generation                             */
-/* -------------------------------------------- */
-
-/** 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11 -> "11th" … */
-export function ordinal(n) {
-  const suffixes = ["th", "st", "nd", "rd"];
-  const remainder = n % 100;
-  return `${n}${suffixes[(remainder - 20) % 10] ?? suffixes[remainder] ?? suffixes[0]}`;
-}
-
-function makeOfficer(title) {
-  return { id: foundry.utils.randomID(), title: title ?? "", name: "", notes: "" };
-}
-
-/**
- * Build a complete army from the configured counts, naming each unit by its
- * ordinal position ("1st Squad", "2nd Squad", …). Squads are left without
- * named soldiers so their strength comes from the squad-size setting; the
- * players can fill in real names as they meet them.
- */
-export function buildStructure() {
-  const counts = getCounts();
-  const titles = getOfficerTitles();
-  const withOfficers = includeOfficers();
-  const unitName = (index, type) => game.i18n.format("ARMY.Generate.unitName", {
-    ordinal: ordinal(index),
-    type: game.i18n.localize(`ARMY.Unit.${type}`)
-  });
-
-  const make = (type, index) => {
-    const level = LEVELS[LEVELS.findIndex((l) => l.type === type)];
-    const unit = {
-      id: foundry.utils.randomID(),
-      name: index === null ? "" : unitName(index, type),
-      officers: withOfficers ? [makeOfficer(titles[type])] : []
-    };
-    if (level.childKey) {
-      const perParent = {
-        hosts: counts.hostsPerArmy,
-        companies: counts.companiesPerHost,
-        cohorts: counts.cohortsPerCompany,
-        squads: counts.squadsPerCohort
-      }[level.childKey] ?? 0;
-      unit[level.childKey] = Array.from({ length: perParent }, (_, i) => make(level.childType, i + 1));
-    } else {
-      unit.members = [];
-    }
-    return unit;
-  };
-
-  const army = make("army", null);
-  army.notes = "";
-  return { army };
-}
+// The structure maths lives in its own module so the treasury can count
+// heads without importing the whole ledger; re-exported here because the
+// rest of the module has always reached for it through data.mjs.
+export {
+  buildStructure,
+  collectUnitIds,
+  officerCount,
+  ordinal,
+  unitMatches,
+  unitStrength
+} from "./structure.mjs";
 
 /* -------------------------------------------- */
 /*  Updates (GM-authoritative via socket)       */
@@ -228,6 +148,23 @@ async function applyOpsAsGM(ops, userId) {
   const data = getArmyData();
   let changed = false;
   for (const op of ops) {
+    // A ledger line carries no path — it is a note about the ops around it,
+    // written in the same save so the record and the change land together.
+    if (op.action === "ledger") {
+      if (isGM && op.entry) {
+        record(data, op.entry);
+        changed = true;
+      }
+      continue;
+    }
+    // Likewise a war-chest movement: no path, and only ever from a GM.
+    if (op.action === "treasury") {
+      if (isGM && chargeUpkeepEnabled() && op.amount) {
+        applyToTreasury(data, op);
+        changed = true;
+      }
+      continue;
+    }
     const path = String(op.path ?? "");
     if (!path || path.includes("-=")) continue;
     if (!isGM && !path.startsWith("structure.") && path !== "structure") continue;
@@ -356,6 +293,15 @@ export async function performTransfer({ memberId, direction, amount, userId }) {
     member.vault = round2(vault - amount);
   }
 
+  record(data, {
+    type: direction === "deposit" ? "deposit" : "withdraw",
+    memberId: member.id,
+    memberName: name,
+    amount: direction === "deposit" ? amount : -amount,
+    target: "vault",
+    balance: member.vault,
+    note: linked ? "" : game.i18n.localize("ARMY.Ledger.ledgerOnly")
+  });
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
   const cfg = getConfig();
@@ -425,6 +371,42 @@ export function highestRankingMember(roster = null) {
   return best;
 }
 
+/**
+ * Who signs off for a given member.
+ *
+ * Sign-off follows the actual chain of command where there is one: the search
+ * starts in the member's own unit and climbs the tree — squad, cohort,
+ * company, host, army — returning the senior person it meets on the way up.
+ * That is what makes unit assignment worth doing: a sergeant in 3rd Squad
+ * answers to her own captain, not to whichever captain happens to sort first.
+ *
+ * An unassigned member, or one whose whole chain is empty, falls back to the
+ * ranking member of the roster as a whole, which is how it worked before
+ * anyone was assigned anywhere.
+ */
+export function approverFor(member, roster = null, structure = null) {
+  const data = (roster && structure) ? { roster, structure } : getArmyData();
+  const list = roster ?? data.roster;
+  const army = structure?.army ?? data.structure?.army;
+
+  const chain = member?.unitId ? unitPath(army, member.unitId) : null;
+  if (chain) {
+    const order = new Map(getRanks().map((r, i) => [r.id, i]));
+    const rankOf = (m) => (order.has(m.rank) ? order.get(m.rank) : -1);
+    const mine = rankOf(member);
+
+    // Climb from the member's own unit up to the army, taking the first
+    // person met who actually outranks them.
+    for (const { unit } of [...chain].reverse()) {
+      const candidates = list
+        .filter((m) => m.unitId === unit.id && m.id !== member.id && rankOf(m) > mine)
+        .sort((a, b) => rankOf(b) - rankOf(a) || effectiveWage(b) - effectiveWage(a));
+      if (candidates.length) return candidates[0];
+    }
+  }
+  return highestRankingMember(list);
+}
+
 /** Online, non-GM users who own the member's character. */
 function ownersOnline(member) {
   if (!member?.actorId) return [];
@@ -490,6 +472,26 @@ export async function performRequisition({ memberId, uuid, quantity, userId }) {
     return { ok: false, error: "ARMY.Requisition.failed" };
   }
   member.debt = round2(debt + total);
+  record(data, {
+    type: "requisition",
+    memberId: member.id,
+    memberName: memberName(member),
+    amount: total,
+    target: "debt",
+    balance: member.debt,
+    note: `${item.name}${qty > 1 ? ` ×${qty}` : ""}`
+  });
+  // The army bought the goods, so the army's money is what paid for them —
+  // the member's debt is what they owe the army for it, not a second payment.
+  if (chargeUpkeepEnabled() && total) {
+    applyToTreasury(data, {
+      type: "requisition",
+      amount: -total,
+      memberId: member.id,
+      memberName: memberName(member),
+      note: `${item.name}${qty > 1 ? ` ×${qty}` : ""}`
+    });
+  }
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
   await docClass("ChatMessage").create({
@@ -554,7 +556,10 @@ export async function routeRequisition(message) {
   }
 
   const data = getArmyData();
-  const approver = highestRankingMember(data.roster);
+  const requesting = data.roster.find((m) => m.id === message.memberId);
+  const approver = requesting
+    ? approverFor(requesting, data.roster, data.structure)
+    : highestRankingMember(data.roster);
 
   // Nobody outranks the requester, so there is no one to ask.
   if (!approver || approver.id === message.memberId) {
@@ -711,6 +716,9 @@ export async function advanceDay(days = 1) {
   const data = getArmyData();
   const cfg = getConfig();
   const rows = [];
+  snapshot(data, days > 1
+    ? game.i18n.format("ARMY.Undo.advanceDays", { days })
+    : game.i18n.localize("ARMY.AdvanceDay"));
 
   for (const member of data.roster) {
     const pay = computePay(member);
@@ -746,6 +754,50 @@ export async function advanceDay(days = 1) {
 
   const startDay = (data.day ?? 0) + 1;
   data.day = (data.day ?? 0) + days;
+
+  for (const [i, row] of rows.entries()) {
+    record(data, {
+      type: "payday",
+      memberId: data.roster[i]?.id ?? null,
+      memberName: row.name,
+      amount: row.net,
+      target: "vault",
+      balance: row.vault,
+      note: row.debtDelta
+        ? game.i18n.format("ARMY.Ledger.paydayDebt", { delta: fmt(row.debtDelta), debt: fmt(row.debt) })
+        : ""
+    });
+  }
+
+  // What the war chest actually pays out is what lands in the members' vaults:
+  // a wage that cancels an existing debt is money the army hands over and
+  // takes straight back, so only the remainder ever leaves the coffers. A
+  // member running a deficit pays the army instead, and the sum goes positive.
+  const upkeep = armyUpkeep(data);
+  const payrollCost = round2(rows.reduce((sum, r) => sum + r.vaultDelta, 0));
+  const upkeepCost = round2(upkeep.total * days);
+  const charging = chargeUpkeepEnabled();
+  let balance = getTreasury(data).balance;
+
+  if (charging) {
+    if (payrollCost) {
+      balance = applyToTreasury(data, {
+        type: "payroll",
+        amount: -payrollCost,
+        note: game.i18n.format("ARMY.Ledger.payrollNote", { count: rows.length, days })
+      });
+    }
+    if (upkeepCost) {
+      balance = applyToTreasury(data, {
+        type: "upkeep",
+        amount: -upkeepCost,
+        note: game.i18n.format("ARMY.Ledger.upkeepNote", {
+          soldiers: upkeep.soldiers, officers: upkeep.officers, days
+        })
+      });
+    }
+  }
+
   await game.settings.set(MODULE_ID, SETTING_DATA, data);
 
   const esc = escapeHTML;
@@ -797,6 +849,28 @@ export async function advanceDay(days = 1) {
     content,
     speaker: { alias: loc("ARMY.Payday.speaker") }
   });
+
+  if (charging) {
+    await whisperFinances(`
+      <div class="at-payday">
+        <h3><i class="fa-solid fa-scale-balanced"></i> ${loc("ARMY.Treasury.paydayHeader")}</h3>
+        <div class="at-line"><span>${loc("ARMY.Treasury.payroll")}</span><span>${signed(-payrollCost)} ${esc(cfg.currency)}</span></div>
+        <div class="at-line"><span>${game.i18n.format("ARMY.Treasury.upkeepLine", {
+          soldiers: upkeep.soldiers, officers: upkeep.officers
+        })}</span><span>${signed(-upkeepCost)} ${esc(cfg.currency)}</span></div>
+        <div class="at-line at-total"><span>${loc("ARMY.Treasury.balance")}</span><span class="${balance < 0 ? "at-neg" : ""}">${fmt(balance)} ${esc(cfg.currency)}</span></div>
+        ${balance < 0 ? `<p class="at-currency-note at-neg">${loc("ARMY.Treasury.arrears")}</p>` : ""}
+      </div>`);
+  }
+}
+
+/** Post an army-finances card to the GM and whoever else may see the books. */
+export async function whisperFinances(content) {
+  await docClass("ChatMessage").create({
+    content,
+    whisper: financeAudience(),
+    speaker: { alias: game.i18n.localize("ARMY.Payday.speaker") }
+  });
 }
 
 /* -------------------------------------------- */
@@ -835,12 +909,14 @@ export async function grantBonus({ mode, amount = 0, clearDebtFirst = false }) {
   const cfg = getConfig();
   const rows = [];
   let total = 0;
+  snapshot(data, game.i18n.localize("ARMY.Bonus.button"));
 
   for (const member of data.roster) {
     const bonus = bonusFor(member, { mode, amount });
     const oldDebt = round2(member.debt ?? 0);
     let debt = oldDebt;
-    let vault = round2(member.vault ?? 0);
+    const oldVault = round2(member.vault ?? 0);
+    let vault = oldVault;
 
     if (clearDebtFirst) {
       const towardDebt = Math.min(debt, bonus);
@@ -857,8 +933,28 @@ export async function grantBonus({ mode, amount = 0, clearDebtFirst = false }) {
       name: memberName(member),
       bonus,
       debtDelta: round2(debt - oldDebt),
+      vaultDelta: round2(vault - oldVault),
       vault,
       debt
+    });
+    record(data, {
+      type: "bonus",
+      memberId: member.id,
+      memberName: memberName(member),
+      amount: bonus,
+      target: "vault",
+      balance: vault,
+      note: game.i18n.localize(`ARMY.Bonus.header.${mode}`)
+    });
+  }
+
+  // As with a payday, only what reaches the vaults actually leaves the chest.
+  const paidOut = round2(rows.reduce((sum, r) => sum + r.vaultDelta, 0));
+  if (chargeUpkeepEnabled() && paidOut) {
+    applyToTreasury(data, {
+      type: "bonus",
+      amount: -paidOut,
+      note: game.i18n.localize(`ARMY.Bonus.header.${mode}`)
     });
   }
 
@@ -905,4 +1001,111 @@ export async function grantBonus({ mode, amount = 0, clearDebtFirst = false }) {
   });
 
   return { total, count: rows.length };
+}
+
+/* -------------------------------------------- */
+/*  Shares of plunder                           */
+/* -------------------------------------------- */
+
+/**
+ * Pay out a slice of the war chest to the roster.
+ *
+ * The pot comes out of the treasury and is split either evenly or by rank,
+ * which here means by base daily wage — the module's existing measure of
+ * seniority. With "pay off debts first" ticked, a member's share cancels what
+ * they owe before the rest reaches their vault; that part of the pot never
+ * leaves the coffers, because the army was owed it anyway.
+ */
+export async function distributeShares({ amount, mode = "equal", clearDebtFirst = false, note = "" }) {
+  if (!game.user.isGM) return null;
+  const data = getArmyData();
+  const cfg = getConfig();
+  const pot = round2(amount);
+  if (!data.roster.length) return { ok: false, error: "ARMY.RosterEmptyWarn" };
+  if (!(pot > 0)) return { ok: false, error: "ARMY.Treasury.badAmount" };
+
+  snapshot(data, game.i18n.localize("ARMY.Shares.title"));
+  const split = shareSplit(data.roster, { amount: pot, mode, wageOf: effectiveWage });
+  const rows = [];
+
+  for (const { member, share } of split) {
+    const oldVault = round2(member.vault ?? 0);
+    const oldDebt = round2(member.debt ?? 0);
+    let debt = oldDebt;
+    let vault = oldVault;
+
+    if (clearDebtFirst) {
+      const towardDebt = Math.min(debt, share);
+      debt = round2(debt - towardDebt);
+      vault = round2(vault + (share - towardDebt));
+    } else {
+      vault = round2(vault + share);
+    }
+
+    member.debt = debt;
+    member.vault = vault;
+    rows.push({
+      name: memberName(member),
+      share,
+      debtDelta: round2(debt - oldDebt),
+      vaultDelta: round2(vault - oldVault),
+      vault,
+      debt
+    });
+    record(data, {
+      type: "shares",
+      memberId: member.id,
+      memberName: memberName(member),
+      amount: share,
+      target: "vault",
+      balance: vault,
+      note
+    });
+  }
+
+  const paidOut = round2(rows.reduce((sum, r) => sum + r.vaultDelta, 0));
+  const balance = applyToTreasury(data, {
+    type: "shares",
+    amount: -paidOut,
+    note: note || game.i18n.localize("ARMY.Shares.title")
+  });
+  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+
+  const esc = escapeHTML;
+  const loc = (k) => game.i18n.localize(k);
+  const body = rows.map((r) => `
+    <tr>
+      <td class="at-c-name">${esc(r.name)}</td>
+      <td class="at-pos">+${fmt(r.share)}</td>
+      <td>${fmt(r.vault)}</td>
+      <td>${fmt(r.debt)}</td>
+    </tr>`).join("");
+
+  await docClass("ChatMessage").create({
+    content: `
+      <div class="at-payday">
+        <h3><i class="fa-solid fa-hand-holding-heart"></i> ${loc("ARMY.Shares.chatHeader")}</h3>
+        ${note ? `<p>${esc(note)}</p>` : ""}
+        <div class="at-payday-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="at-c-name">${loc("ARMY.Payday.name")}</th>
+              <th>${loc("ARMY.Shares.col")}</th>
+              <th>${loc("ARMY.Payday.vault")}</th>
+              <th>${loc("ARMY.Payday.debt")}</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+        </div>
+        <p class="at-currency-note">${game.i18n.format("ARMY.Shares.total", {
+          total: fmt(pot), currency: esc(cfg.currency), count: rows.length,
+          mode: loc(`ARMY.Shares.mode.${mode}`)
+        })}</p>
+      </div>`,
+    speaker: { alias: loc("ARMY.Payday.speaker") }
+  });
+
+  return { ok: true, total: pot, paidOut, count: rows.length, balance };
 }

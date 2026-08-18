@@ -4,7 +4,9 @@
     "OpenButton": "Army Tracker",
     "Tabs": {
       "roster": "Pay & Roster",
-      "structure": "Army Structure"
+      "structure": "Army Structure",
+      "treasury": "War Chest",
+      "ledger": "Ledger"
     },
     "Day": "Day",
     "DayShort": "day",
@@ -135,7 +137,11 @@
       "strengthTooltip": "Soldiers within this unit, counting every squad beneath it.",
       "impliedStrength": "{count} soldiers (assumed)",
       "notesLabel": "Army notes",
-      "notesPh": "Campaign notes, standing orders, anything worth keeping at army level…"
+      "notesPh": "Campaign notes, standing orders, anything worth keeping at army level…",
+      "unassigned": "— Unassigned —",
+      "posting": "Posted to",
+      "postingTooltip": "Which unit this member serves in. Sign-off for requisitions follows the chain of command upward from here.",
+      "postedTooltip": "Roster members posted to this unit"
     },
     "StructureHint": "The army runs from the top down: Army → Host → Company → Cohort → Squad. Units start collapsed — open one with the chevron to name it and record who serves in it. Everyone at the table can fill this in.",
     "UnitEmpty": "Nothing here yet — use the + button on the header above to add a sub-unit.",
@@ -189,6 +195,10 @@
       "currency": {
         "name": "Currency Label",
         "hint": "Shown next to all monetary amounts, e.g. gp, sp, denarii. On Pathfinder 2e, vault balances are treated as gold pieces when depositing or withdrawing coin."
+      },
+      "ledgerCap": {
+        "name": "Ledger entries kept",
+        "hint": "How many ledger lines to keep before the oldest are dropped. Higher values grow the saved world data."
       }
     },
     "UnknownRank": "Removed rank ({id})",
@@ -258,7 +268,19 @@
       "requisitionApproval": "Require approval from the ranking party member",
       "requisitionHint": "Player requisitions are sent to the highest-ranking member of the roster for sign-off before the item is handed over. Seniority follows the rank order above — the last rank is the most senior. GM requisitions are never held for approval, and neither is one made by the ranking member themselves.",
       "currentApprover": "Approval currently rests with {name}.",
-      "noApprover": "No roster members yet, so there is nobody to approve requisitions."
+      "noApprover": "No roster members yet, so there is nobody to approve requisitions.",
+      "treasuryTitle": "War chest",
+      "treasuryEnabled": "Track an army treasury",
+      "treasuryHint": "Gives the army a war chest that plunder fills and wages, upkeep and requisitions drain. Turn it off to keep the tracker to personal finances only.",
+      "chargeUpkeep": "Draw wages and upkeep from the war chest",
+      "chargeUpkeepHint": "With this off the war chest only changes when you say so, and Advance Day leaves it alone.",
+      "upkeepPerSoldier": "Per soldier, per day",
+      "upkeepPerOfficer": "Per officer, per day",
+      "costOfLiving": "Pathfinder 2e puts subsistence living at {subsistence} gp a day and comfortable living at {comfortable} gp. The defaults here are those figures halved, on the grounds that a state-backed army buys grain by the wagon and quarters its troops in its own tents.",
+      "upkeepExample": "At this rate, {soldiers} soldiers cost {cost} a day.",
+      "financeVisibility": "Who can see the war chest",
+      "financeMinRank": "Minimum rank",
+      "financeHint": "Any roster member can also be let in or shut out individually, from the Finances panel on their row. This hides the numbers at the table; it is not a security boundary, since a determined player can read the world data directly."
     },
     "ExpandAll": "Expand all",
     "CollapseAll": "Collapse all",
@@ -333,6 +355,138 @@
       "results": "{count} matching",
       "clear": "Clear search",
       "none": "Nothing in the army matches that search."
+    },
+    "Undo": {
+      "title": "Undo",
+      "tooltip": "Undo: {label}",
+      "prompt": "Put every balance back as it was before <strong>{label}</strong>? The ledger entries it wrote are removed and the correction is recorded in their place.",
+      "done": "Undone: {label}.",
+      "advanceDays": "Advance {days} days"
+    },
+    "Ledger": {
+      "entry": "Entry",
+      "subject": "Who",
+      "amount": "Amount",
+      "balance": "Balance",
+      "empty": "Nothing recorded yet. Paydays, loans, transfers and plunder all write a line here.",
+      "army": "The army",
+      "allTypes": "All entries",
+      "allMembers": "Everyone",
+      "clearFilter": "Clear filters",
+      "paydayDebt": "debt {delta}, now {debt}",
+      "payrollNote": "Wages for {count} on the roster over {days} day(s)",
+      "upkeepNote": "{soldiers} soldiers and {officers} officers for {days} day(s)",
+      "ledgerOnly": "Ledger only — no linked inventory",
+      "undoNote": "Undid {label}, removing {count} entr(y/ies)",
+      "type": {
+        "payday": "Payday",
+        "upkeep": "Upkeep",
+        "payroll": "Payroll",
+        "loan": "Loan",
+        "repay": "Debt repaid",
+        "requisition": "Requisition",
+        "deposit": "Vault deposit",
+        "withdraw": "Vault withdrawal",
+        "bonus": "Bonus",
+        "loot": "Plunder",
+        "shares": "Shares of plunder",
+        "adjust": "Adjustment",
+        "undo": "Undone"
+      },
+      "target": {
+        "vault": "vault",
+        "debt": "debt",
+        "treasury": "war chest",
+        "inventory": "carried"
+      }
+    },
+    "Treasury": {
+      "balance": "War chest",
+      "arrears": "The army is in arrears — it owes more than it holds.",
+      "runway": "Covers {days} more day(s) at the current rate.",
+      "upkeepHeader": "Daily cost",
+      "soldiers": "{count} soldiers at {rate} each",
+      "officers": "{count} officers at {rate} each",
+      "payroll": "Roster wages",
+      "daily": "Army upkeep per day",
+      "upkeepHint": "Soldier numbers come from the army structure, so a squad with nobody named still musters — and still eats — at its configured size. Roster wages are listed separately because what actually leaves the chest is whatever reaches the party's vaults.",
+      "visibilityHeader": "Who can see this",
+      "paydayHeader": "War chest",
+      "upkeepLine": "Upkeep ({soldiers} soldiers, {officers} officers)",
+      "chatGain": "The war chest gains {amount} {currency}.",
+      "chatLoss": "The war chest pays out {amount} {currency}.",
+      "chatBalance": "War chest: {balance} {currency}",
+      "set": "Set balance",
+      "setTitle": "Set the war chest",
+      "setTooltip": "Set the war chest to an exact figure, recording the difference in the ledger.",
+      "setPrompt": "The war chest currently holds {balance} {currency}. Setting it to a new figure records the difference as an adjustment.",
+      "balanceLabel": "New balance ({currency})",
+      "noteLabel": "Note",
+      "notePh": "What this is for",
+      "empty": "The war chest is empty — there is nothing to share out.",
+      "badAmount": "Enter an amount greater than zero.",
+      "accessLabel": "Sees the books",
+      "access": {
+        "inherit": "Follows the visibility rule — click to always allow",
+        "grant": "Always allowed, whatever their rank — click to always deny",
+        "deny": "Never allowed, whatever their rank — click to follow the rule"
+      },
+      "visibility": {
+        "gm": "GM only",
+        "rank": "Rank and above",
+        "all": "Everyone",
+        "gmSummary": "Only the GM can see the war chest and army entries in the ledger.",
+        "rankSummary": "Players holding {rank} or above can see the war chest and army entries.",
+        "allSummary": "Everyone at the table can see the war chest and army entries.",
+        "noRank": "(no rank set)"
+      }
+    },
+    "Loot": {
+      "title": "Record plunder",
+      "button": "Record plunder",
+      "tooltip": "Add the takings from a battle, a siege or a sacking to the war chest.",
+      "prompt": "What did the army take? Pick the engagement and roll for a figure, or simply type one in.",
+      "kindLabel": "Engagement",
+      "sizeLabel": "Settlement",
+      "levelLabel": "Level of the enemy or settlement",
+      "varianceLabel": "Vary the result (±25%)",
+      "roll": "Work out a figure",
+      "workingHint": "Nothing rolled yet — the amount below is yours to set.",
+      "working": "{base} at level {level} × {multiplier} × {roll} = {total}",
+      "amountLabel": "Amount taken ({currency})",
+      "notePh": "Where it came from",
+      "confirm": "Add to war chest",
+      "kind": {
+        "skirmish": "Skirmish or patrol",
+        "raid": "Raid",
+        "battle": "Pitched battle",
+        "siege": "Siege",
+        "sack": "Sacking a settlement",
+        "other": "Other windfall"
+      },
+      "size": {
+        "village": "Village (level 0–1)",
+        "town": "Town (level 2–4)",
+        "city": "City (level 5–9)",
+        "metropolis": "Metropolis (level 10+)"
+      }
+    },
+    "Shares": {
+      "title": "Shares of plunder",
+      "button": "Share out",
+      "tooltip": "Split part of the war chest among the roster.",
+      "prompt": "The war chest holds {balance} {currency}. How much of it goes to the {count} on the roster?",
+      "amountLabel": "Amount to share ({currency})",
+      "modeLabel": "Split",
+      "notePh": "What is being shared out",
+      "confirm": "Share out",
+      "chatHeader": "Shares of plunder",
+      "col": "Share",
+      "total": "{total} {currency} shared among {count}, {mode}.",
+      "mode": {
+        "equal": "Equal shares",
+        "rank": "By rank — a share for each gold of daily wage"
+      }
     }
   }
 }

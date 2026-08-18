@@ -112,6 +112,50 @@
     </fieldset>
 
     <fieldset class="at-config-section">
+      <legend><i class="fa-solid fa-scale-balanced"></i> {{localize "ARMY.Config.treasuryTitle"}}</legend>
+      <label class="at-check">
+        <input type="checkbox" data-field="treasuryEnabled" {{#if treasuryEnabled}}checked{{/if}}>
+        <span>{{localize "ARMY.Config.treasuryEnabled"}}</span>
+      </label>
+      <p class="at-hint">{{localize "ARMY.Config.treasuryHint"}}</p>
+
+      {{#if treasuryEnabled}}
+      <label class="at-check">
+        <input type="checkbox" data-field="chargeUpkeep" {{#if chargeUpkeep}}checked{{/if}}>
+        <span>{{localize "ARMY.Config.chargeUpkeep"}}</span>
+      </label>
+      <p class="at-hint">{{localize "ARMY.Config.chargeUpkeepHint"}}</p>
+
+      <div class="at-grid">
+        <div class="at-field">
+          <label>{{localize "ARMY.Config.upkeepPerSoldier"}}</label>
+          <input type="number" step="0.01" min="0" value="{{upkeepPerSoldier}}" data-field="upkeepPerSoldier">
+        </div>
+        <div class="at-field">
+          <label>{{localize "ARMY.Config.upkeepPerOfficer"}}</label>
+          <input type="number" step="0.01" min="0" value="{{upkeepPerOfficer}}" data-field="upkeepPerOfficer">
+        </div>
+      </div>
+      <p class="at-hint">{{costOfLiving}}</p>
+      <p class="at-hint">{{upkeepExample}}</p>
+
+      <div class="at-grid">
+        <div class="at-field">
+          <label>{{localize "ARMY.Config.financeVisibility"}}</label>
+          <select data-field="financeVisibility">{{selectOptions visibilityOptions selected=financeVisibility}}</select>
+        </div>
+        {{#if byRank}}
+        <div class="at-field">
+          <label>{{localize "ARMY.Config.financeMinRank"}}</label>
+          <select data-field="financeMinRank">{{selectOptions rankOptions selected=financeMinRank}}</select>
+        </div>
+        {{/if}}
+      </div>
+      <p class="at-hint">{{localize "ARMY.Config.financeHint"}}</p>
+      {{/if}}
+    </fieldset>
+
+    <fieldset class="at-config-section">
       <legend><i class="fa-solid fa-wand-magic-sparkles"></i> {{localize "ARMY.Config.generateTitle"}}</legend>
       <label class="at-check">
         <input type="checkbox" data-field="autoPopulate" {{#if autoPopulate}}checked{{/if}}>

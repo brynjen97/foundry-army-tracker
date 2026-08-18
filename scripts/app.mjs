@@ -4,6 +4,7 @@ import {
   applyOps,
   bonusFor,
   buildStructure,
+  distributeShares,
   collectUnitIds,
   computePay,
   grantBonus,
@@ -21,11 +22,30 @@ import {
   unitStrength
 } from "./data.mjs";
 import { getCounts, getDeductionTemplate, getOfficerTitles, getRanks, includeOfficers } from "./settings.mjs";
+import { listUnits } from "./structure.mjs";
+import { ENTRY_TYPES, undoLabel, undoLast } from "./ledger.mjs";
+import {
+  armyUpkeep,
+  canSeeFinances,
+  creditTreasury,
+  financeVisibilitySummary,
+  getTreasury,
+  setTreasuryBalance,
+  treasuryEnabled
+} from "./treasury.mjs";
+import { generateHaul, HAUL_KINDS, MAX_LEVEL, SETTLEMENTS } from "./treasure.mjs";
 import { ArmyConfigApp } from "./config-app.mjs";
 import { carriedGold, coinLabel, giveToActor, itemPriceGold, supportsInventoryTransfer } from "./currency.mjs";
 import { MAX_ITEM_LEVEL, openArmyShop, shopAvailable } from "./shop.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
+
+/** How a member's finance-access override shows on their row. */
+const FINANCE_ICONS = {
+  inherit: "fa-regular fa-circle",
+  grant: "fa-solid fa-eye",
+  deny: "fa-solid fa-eye-slash"
+};
 
 export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
@@ -40,6 +60,13 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   activeTab = "roster";
   #expandedRows = new Set();
+
+  /** Roster members posted to each unit, rebuilt on every render. */
+  #postings = new Map();
+
+  /** Ledger view filters: entry type and roster member, "all" for either. */
+  #ledgerType = "all";
+  #ledgerMember = "all";
 
   // Collapse state is tracked as explicit overrides in either direction, so
   // that anything the user has not touched follows the default below: only the
@@ -108,7 +135,13 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       addOfficer: ArmyTrackerApp._onAddOfficer,
       removeOfficer: ArmyTrackerApp._onRemoveOfficer,
       generateArmy: ArmyTrackerApp._onGenerateArmy,
-      openConfig: ArmyTrackerApp._onOpenConfig
+      openConfig: ArmyTrackerApp._onOpenConfig,
+      setTreasury: ArmyTrackerApp._onSetTreasury,
+      recordLoot: ArmyTrackerApp._onRecordLoot,
+      shareOut: ArmyTrackerApp._onShareOut,
+      undoLast: ArmyTrackerApp._onUndoLast,
+      cycleFinanceAccess: ArmyTrackerApp._onCycleFinanceAccess,
+      clearLedgerFilter: ArmyTrackerApp._onClearLedgerFilter
     }
   };
 
@@ -178,6 +211,13 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
           arrayPath: `${path}.deductions`,
           index: j
         })),
+        // A member posted to a unit that has since been deleted or regenerated
+        // matches no option and so shows as unassigned, rather than pointing
+        // at something that is no longer there.
+        unitId: member.unitId ?? "",
+        financeAccess: member.financeAccess ?? "inherit",
+        financeIcon: FINANCE_ICONS[member.financeAccess ?? "inherit"],
+        financeTip: game.i18n.localize(`ARMY.Treasury.access.${member.financeAccess ?? "inherit"}`),
         expanded: this.#expandedRows.has(member.id)
       };
     });
@@ -189,9 +229,30 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return acc;
     }, { net: 0, debt: 0, vault: 0 });
 
+    // Who is posted where, so a unit header can name the party members serving
+    // in it without every node re-scanning the roster.
+    this.#postings = new Map();
+    for (const member of data.roster) {
+      if (!member.unitId) continue;
+      const list = this.#postings.get(member.unitId) ?? [];
+      list.push(memberName(member));
+      this.#postings.set(member.unitId, list);
+    }
+
     const query = this.#structureQuery.trim();
     const stats = { matches: 0 };
     const army = this.#buildNode(data.structure.army, null, null, 0, query, stats);
+
+    const showFinances = canSeeFinances(game.user, data);
+    const treasuryOn = treasuryEnabled();
+    // A tab that has been hidden out from under the viewer falls back to the
+    // roster rather than rendering an empty body.
+    if (!treasuryOn || !showFinances) {
+      if (this.activeTab === "treasury") this.activeTab = "roster";
+    }
+
+    const upkeep = armyUpkeep(data);
+    const balance = getTreasury(data).balance;
 
     return {
       isGM,
@@ -201,9 +262,45 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       daysPerMonth: cfg.daysPerMonth,
       daysPerYear: cfg.daysPerYear,
       loanMonths: cfg.loanMonths,
+      treasuryOn,
+      showFinances,
+      treasury: {
+        balance,
+        balanceF: fmt(balance),
+        inArrears: balance < 0,
+        soldiers: upkeep.soldiers,
+        officers: upkeep.officers,
+        perSoldierF: fmt(upkeep.perSoldier ?? 0),
+        perOfficerF: fmt(upkeep.perOfficer ?? 0),
+        soldierCostF: fmt(upkeep.soldierCost),
+        officerCostF: fmt(upkeep.officerCost),
+        dailyF: fmt(upkeep.total),
+        monthlyF: fmt(round2(upkeep.total * cfg.daysPerMonth)),
+        payrollF: fmt(round2(totals.net)),
+        // What the chest can stand at the current burn rate, which is the one
+        // number a commander actually wants: how long until we cannot pay.
+        daysLeft: this.#solvency(balance, upkeep.total, totals.net),
+        visibility: financeVisibilitySummary()
+      },
+      undoLabel: isGM ? undoLabel(data) : null,
+      ledger: this.#ledgerRows(data, showFinances),
+      ledgerType: this.#ledgerType,
+      ledgerMember: this.#ledgerMember,
+      ledgerTypeOptions: this.#ledgerTypeOptions(),
+      ledgerMemberOptions: Object.fromEntries([
+        ["all", game.i18n.localize("ARMY.Ledger.allMembers")],
+        ...data.roster.map((m) => [m.id, memberName(m)])
+      ]),
+      ledgerFiltered: this.#ledgerType !== "all" || this.#ledgerMember !== "all",
+      unitOptions: Object.fromEntries([
+        ["", game.i18n.localize("ARMY.Unit.unassigned")],
+        ...listUnits(data.structure.army).map((u) => [u.id, u.label])
+      ]),
       tabs: {
         roster: this.activeTab === "roster",
-        structure: this.activeTab === "structure"
+        structure: this.activeTab === "structure",
+        treasury: this.activeTab === "treasury",
+        ledger: this.activeTab === "ledger"
       },
       rankOptions,
       roster,
@@ -263,6 +360,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         type: game.i18n.localize(`ARMY.Unit.${level.type}`)
       }),
       collapsed: this.#isCollapsed(unit.id, depth),
+      posted: this.#postings.get(unit.id)?.join(", ") ?? null,
       isSquad: !level.childKey,
       strength,
       strengthLabel: game.i18n.format("ARMY.Unit.strength", { count: strength })
@@ -335,6 +433,63 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if (!selfMatch) node.collapsed = false;
     }
     return node;
+  }
+
+  /**
+   * How many days the war chest covers at the current burn rate.
+   * Returns null when the army is running a surplus — there is no runway to
+   * report when the balance is going up.
+   */
+  #solvency(balance, upkeep, netPayroll) {
+    const burn = round2(upkeep + Math.max(0, netPayroll));
+    if (burn <= 0 || balance <= 0) return null;
+    return Math.floor(balance / burn);
+  }
+
+  /** The type filter's options, only offering types actually present. */
+  #ledgerTypeOptions() {
+    const options = { all: game.i18n.localize("ARMY.Ledger.allTypes") };
+    for (const type of Object.keys(ENTRY_TYPES)) {
+      options[type] = game.i18n.localize(`ARMY.Ledger.type.${type}`);
+    }
+    return options;
+  }
+
+  /**
+   * The ledger as display rows, newest first.
+   *
+   * Army-scope entries — the war chest, upkeep, plunder — are held back from
+   * anyone the GM has not let into the books. A member's own entries are
+   * always their business, so those stay visible either way.
+   */
+  #ledgerRows(data, showFinances) {
+    const cfg = getConfig();
+    const owned = new Set(
+      data.roster
+        .filter((m) => m.actorId && game.actors.get(m.actorId)?.isOwner)
+        .map((m) => m.id)
+    );
+
+    return (data.ledger ?? [])
+      .filter((e) => {
+        if (e.scope === "army" && !showFinances) return false;
+        if (e.scope === "member" && !game.user.isGM && !showFinances && !owned.has(e.memberId)) return false;
+        if (this.#ledgerType !== "all" && e.type !== this.#ledgerType) return false;
+        if (this.#ledgerMember !== "all" && e.memberId !== this.#ledgerMember) return false;
+        return true;
+      })
+      .map((e) => ({
+        ...e,
+        icon: ENTRY_TYPES[e.type]?.icon ?? "fa-circle",
+        typeLabel: game.i18n.localize(`ARMY.Ledger.type.${e.type}`),
+        amountF: `${e.amount > 0 ? "+" : ""}${fmt(e.amount)}`,
+        amountClass: e.amount > 0 ? "at-pos" : (e.amount < 0 ? "at-neg" : ""),
+        balanceF: e.balance === null ? null : fmt(e.balance),
+        targetLabel: e.target ? game.i18n.localize(`ARMY.Ledger.target.${e.target}`) : "",
+        currency: cfg.currency,
+        subject: e.memberName ?? game.i18n.localize("ARMY.Ledger.army")
+      }))
+      .reverse();
   }
 
   async _onRender(context, options) {
@@ -467,6 +622,16 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   async #onChangeInput(event) {
     const el = event.target;
+
+    // Ledger filters are view state, not stored data — they never leave this client.
+    const filter = el.dataset?.ledgerFilter;
+    if (filter === "type" || filter === "member") {
+      if (filter === "type") this.#ledgerType = el.value;
+      else this.#ledgerMember = el.value;
+      this.render();
+      return;
+    }
+
     const path = el.dataset?.path;
     if (!path) return;
 
@@ -801,7 +966,20 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
 
-    await applyOps([{ action: "set", path: `roster.${index}.debt`, value: round2(debt + amount) }]);
+    const newDebt = round2(debt + amount);
+    const name = memberName(member);
+    await applyOps([
+      { action: "set", path: `roster.${index}.debt`, value: newDebt },
+      {
+        action: "ledger",
+        entry: {
+          type: "loan", memberId: member.id, memberName: name,
+          amount, target: "debt", balance: newDebt
+        }
+      },
+      // The coin the member walks away with came out of the war chest.
+      { action: "treasury", type: "loan", amount: -amount, memberId: member.id, memberName: name, note: "" }
+    ]);
     ui.notifications.info(game.i18n.format(linked ? "ARMY.LoanGranted" : "ARMY.LoanGrantedLedger", {
       amount: fmt(amount),
       currency: cfg.currency,
@@ -823,9 +1001,19 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       ui.notifications.warn(game.i18n.localize("ARMY.NothingToRepay"));
       return;
     }
+    const name = memberName(member);
     await applyOps([
       { action: "set", path: `roster.${index}.debt`, value: round2(debt - payment) },
-      { action: "set", path: `roster.${index}.vault`, value: round2(vault - payment) }
+      { action: "set", path: `roster.${index}.vault`, value: round2(vault - payment) },
+      {
+        action: "ledger",
+        entry: {
+          type: "repay", memberId: member.id, memberName: name,
+          amount: -payment, target: "debt", balance: round2(debt - payment)
+        }
+      },
+      // Money owed to the army, returned to the army.
+      { action: "treasury", type: "repay", amount: payment, memberId: member.id, memberName: name, note: "" }
     ]);
   }
 
@@ -1006,6 +1194,267 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#resetCollapse();
     await applyOps([{ action: "set", path: "structure.army", value: built.army }]);
     ui.notifications.info(game.i18n.format("ARMY.Generate.done", { count: total }));
+  }
+
+
+  /* -------------------------------------------- */
+  /*  Actions: treasury & ledger                  */
+  /* -------------------------------------------- */
+
+  /** Set the war chest to an exact figure — seeding it, or correcting it. */
+  static async _onSetTreasury() {
+    if (!game.user.isGM) return;
+    const cfg = getConfig();
+    const current = getTreasury(getArmyData()).balance;
+
+    const result = await DialogV2.prompt({
+      window: { title: game.i18n.localize("ARMY.Treasury.setTitle") },
+      content: `
+        <p>${game.i18n.format("ARMY.Treasury.setPrompt", {
+          balance: fmt(current), currency: escapeHTML(cfg.currency)
+        })}</p>
+        <div class="form-group">
+          <label>${game.i18n.format("ARMY.Treasury.balanceLabel", { currency: escapeHTML(cfg.currency) })}</label>
+          <input type="number" name="balance" step="any" value="${current}" autofocus>
+        </div>
+        <div class="form-group">
+          <label>${game.i18n.localize("ARMY.Treasury.noteLabel")}</label>
+          <input type="text" name="note" placeholder="${game.i18n.localize("ARMY.Treasury.notePh")}">
+        </div>`,
+      rejectClose: false,
+      ok: {
+        label: game.i18n.localize("ARMY.Treasury.set"),
+        icon: "fa-solid fa-pen",
+        callback: (event, button) => ({
+          balance: Number(button.form.elements.balance.value),
+          note: button.form.elements.note.value.trim()
+        })
+      }
+    });
+    if (!result || Number.isNaN(result.balance)) return;
+    await setTreasuryBalance(result.balance, result.note);
+  }
+
+  /**
+   * Record what a battle, siege or sacking brought in.
+   *
+   * The generator is a starting point, not a verdict: it works out a figure
+   * from the engagement and the level, shows the arithmetic, and drops it into
+   * an editable field. A GM who already knows the number types it in and
+   * ignores the rest.
+   */
+  static async _onRecordLoot() {
+    if (!game.user.isGM) return;
+    const cfg = getConfig();
+    const esc = escapeHTML;
+    const loc = (k) => game.i18n.localize(k);
+    const armyLevel = getArmyData().structure.army?.level ?? 1;
+
+    const kindOptions = Object.keys(HAUL_KINDS)
+      .map((k) => `<option value="${k}">${esc(loc(`ARMY.Loot.kind.${k}`))}</option>`).join("");
+    const sizeOptions = Object.keys(SETTLEMENTS)
+      .map((k) => `<option value="${k}"${k === "town" ? " selected" : ""}>${esc(loc(`ARMY.Loot.size.${k}`))}</option>`).join("");
+
+    const content = `
+      <p>${loc("ARMY.Loot.prompt")}</p>
+      <div class="form-group">
+        <label>${loc("ARMY.Loot.kindLabel")}</label>
+        <select name="kind">${kindOptions}</select>
+      </div>
+      <div class="form-group at-loot-settlement" hidden>
+        <label>${loc("ARMY.Loot.sizeLabel")}</label>
+        <select name="settlement">${sizeOptions}</select>
+      </div>
+      <div class="form-group">
+        <label>${loc("ARMY.Loot.levelLabel")}</label>
+        <input type="number" name="level" min="1" max="${MAX_LEVEL}" step="1" value="${armyLevel}">
+      </div>
+      <div class="form-group">
+        <label>${loc("ARMY.Loot.varianceLabel")}</label>
+        <input type="checkbox" name="variance" checked>
+      </div>
+      <div class="at-btn-row">
+        <button type="button" class="at-roll-haul">
+          <i class="fa-solid fa-dice-d20"></i> ${loc("ARMY.Loot.roll")}
+        </button>
+      </div>
+      <p class="at-loot-working at-hint">${loc("ARMY.Loot.workingHint")}</p>
+      <div class="form-group">
+        <label>${game.i18n.format("ARMY.Loot.amountLabel", { currency: esc(cfg.currency) })}</label>
+        <input type="number" name="amount" step="any" min="0" value="0">
+      </div>
+      <div class="form-group">
+        <label>${loc("ARMY.Treasury.noteLabel")}</label>
+        <input type="text" name="note" placeholder="${loc("ARMY.Loot.notePh")}">
+      </div>`;
+
+    const result = await DialogV2.prompt({
+      window: { title: loc("ARMY.Loot.title") },
+      content,
+      rejectClose: false,
+      render: (event, dialog) => ArmyTrackerApp.#wireLootDialog(dialog),
+      ok: {
+        label: loc("ARMY.Loot.confirm"),
+        icon: "fa-solid fa-sack-dollar",
+        callback: (event, button) => ({
+          amount: Number(button.form.elements.amount.value),
+          note: button.form.elements.note.value.trim(),
+          kind: button.form.elements.kind.value
+        })
+      }
+    });
+    if (!result || Number.isNaN(result.amount) || result.amount <= 0) return;
+
+    const label = game.i18n.localize(`ARMY.Loot.kind.${result.kind}`);
+    await creditTreasury({
+      amount: result.amount,
+      type: "loot",
+      note: result.note ? `${label} — ${result.note}` : label
+    });
+  }
+
+  /**
+   * Live-wire the haul dialog: show the settlement picker only for a sacking,
+   * and put the rolled figure and its working into the form.
+   */
+  static #wireLootDialog(dialog) {
+    const root = dialog?.element ?? dialog;
+    const form = root?.querySelector?.("form") ?? root;
+    if (!form) return;
+    const el = (name) => form.querySelector(`[name="${name}"]`);
+    const settlementGroup = form.querySelector(".at-loot-settlement");
+    const working = form.querySelector(".at-loot-working");
+
+    const syncKind = () => {
+      const sack = el("kind").value === "sack";
+      if (settlementGroup) settlementGroup.hidden = !sack;
+      if (sack) el("level").value = SETTLEMENTS[el("settlement").value]?.level ?? 3;
+    };
+
+    const roll = () => {
+      const haul = generateHaul({
+        kind: el("kind").value,
+        level: Number(el("level").value),
+        settlement: el("settlement").value,
+        variance: el("variance").checked
+      });
+      el("amount").value = haul.total;
+      if (working) {
+        working.textContent = game.i18n.format("ARMY.Loot.working", {
+          base: fmt(haul.base),
+          level: haul.level,
+          multiplier: haul.multiplier,
+          roll: haul.roll,
+          total: fmt(haul.total)
+        });
+      }
+    };
+
+    el("kind")?.addEventListener("change", syncKind);
+    el("settlement")?.addEventListener("change", syncKind);
+    form.querySelector(".at-roll-haul")?.addEventListener("click", roll);
+    syncKind();
+  }
+
+  /** Split a slice of the war chest among the roster. */
+  static async _onShareOut() {
+    if (!game.user.isGM) return;
+    const data = getArmyData();
+    if (!data.roster.length) {
+      ui.notifications.warn(game.i18n.localize("ARMY.RosterEmptyWarn"));
+      return;
+    }
+    const cfg = getConfig();
+    const balance = getTreasury(data).balance;
+    if (balance <= 0) {
+      ui.notifications.warn(game.i18n.localize("ARMY.Treasury.empty"));
+      return;
+    }
+
+    const result = await DialogV2.prompt({
+      window: { title: game.i18n.localize("ARMY.Shares.title") },
+      content: `
+        <p>${game.i18n.format("ARMY.Shares.prompt", {
+          balance: fmt(balance), currency: escapeHTML(cfg.currency), count: data.roster.length
+        })}</p>
+        <div class="form-group">
+          <label>${game.i18n.format("ARMY.Shares.amountLabel", { currency: escapeHTML(cfg.currency) })}</label>
+          <input type="number" name="amount" step="any" min="0" max="${balance}" value="${balance}" autofocus>
+        </div>
+        <div class="form-group">
+          <label>${game.i18n.localize("ARMY.Shares.modeLabel")}</label>
+          <select name="mode">
+            <option value="equal">${game.i18n.localize("ARMY.Shares.mode.equal")}</option>
+            <option value="rank">${game.i18n.localize("ARMY.Shares.mode.rank")}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>${game.i18n.localize("ARMY.Bonus.debtFirst")}</label>
+          <input type="checkbox" name="clearDebtFirst">
+        </div>
+        <div class="form-group">
+          <label>${game.i18n.localize("ARMY.Treasury.noteLabel")}</label>
+          <input type="text" name="note" placeholder="${game.i18n.localize("ARMY.Shares.notePh")}">
+        </div>`,
+      rejectClose: false,
+      ok: {
+        label: game.i18n.localize("ARMY.Shares.confirm"),
+        icon: "fa-solid fa-hand-holding-heart",
+        callback: (event, button) => ({
+          amount: Number(button.form.elements.amount.value),
+          mode: button.form.elements.mode.value,
+          clearDebtFirst: button.form.elements.clearDebtFirst.checked,
+          note: button.form.elements.note.value.trim()
+        })
+      }
+    });
+    if (!result || Number.isNaN(result.amount) || result.amount <= 0) return;
+
+    const outcome = await distributeShares({
+      amount: Math.min(round2(result.amount), balance),
+      mode: result.mode,
+      clearDebtFirst: result.clearDebtFirst,
+      note: result.note
+    });
+    if (outcome && !outcome.ok) ui.notifications.warn(game.i18n.localize(outcome.error));
+  }
+
+  /** Put the balances back as they were before the last batch change. */
+  static async _onUndoLast() {
+    if (!game.user.isGM) return;
+    const data = getArmyData();
+    const label = undoLabel(data);
+    if (!label) return;
+
+    const confirmed = await DialogV2.confirm({
+      window: { title: game.i18n.localize("ARMY.Undo.title") },
+      content: `<p>${game.i18n.format("ARMY.Undo.prompt", { label: escapeHTML(label) })}</p>`,
+      rejectClose: false,
+      modal: true
+    });
+    if (!confirmed) return;
+
+    const undone = await undoLast(data);
+    if (undone) ui.notifications.info(game.i18n.format("ARMY.Undo.done", { label: undone.label }));
+  }
+
+  /** Cycle a member between inheriting the visibility rule, always, and never. */
+  static async _onCycleFinanceAccess(event, target) {
+    if (!game.user.isGM) return;
+    const order = ["inherit", "grant", "deny"];
+    const current = target.dataset.state ?? "inherit";
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    await applyOps([{
+      action: "set",
+      path: `roster.${Number(target.dataset.index)}.financeAccess`,
+      value: next
+    }]);
+  }
+
+  static _onClearLedgerFilter() {
+    this.#ledgerType = "all";
+    this.#ledgerMember = "all";
+    this.render();
   }
 
   static _onOpenConfig() {
