@@ -110,6 +110,28 @@ Army-scope lines follow the same visibility rule as the war chest. A member's ow
 
 Roster members can be **posted to a unit** from the Finances panel on their row. Once they are, requisition sign-off follows the actual chain of command: the search starts in the member's own unit and climbs — squad, cohort, company, host, army — returning the first person it meets who outranks them. A sergeant in 3rd Squad answers to her own captain, not to whichever captain happens to sort first. Unit headers name the party members serving in them, and anyone unassigned falls back to the ranking member of the roster as before.
 
+### Sharing & Notes
+
+By default the tracker's data lives in a world setting, and Foundry only lets a GM write those — so every player edit is relayed to a connected GM's client, and nothing saves at all when none is online. That is the right shape for a game being run, and the wrong shape for a shared notebook the table fills in between sessions.
+
+**Let players save changes without a GM online** (*Configure Army Tracker → Players & sharing*, off by default) fixes that. The data moves into a JournalEntry that every player owns, so they write it directly — no GM connected, no relay, no waiting.
+
+With it on, players can:
+
+- edit the **army structure** as before — units, officers, squad rosters, notes;
+- **add people to the roster**, name them, write free-text **notes** on them, and post them to a unit.
+
+They still cannot touch anything the economy depends on: rank, wages, deductions, debt, vaults, the war chest, the ledger and the day count all stay with the GM. A roster entry can be deleted only while no money is attached to it, so a mistyped note can be tidied away but an account cannot be wiped — entries holding money show a padlock instead of a bin.
+
+Each roster row gains a **Notes** panel in its expanded view: a name field (for entries with no linked actor — a linked character supplies its own name) and a free-text box for whatever the table wants to remember about them.
+
+The journal entry is named **"Army Tracker — shared data"** and is created the first time a GM logs in after the toggle is switched on. Leave it where it is. Turning the toggle back off copies everything the table wrote back into the world setting and leaves the journal in place, so nothing is stranded and nothing is destroyed — switching back and forth is safe.
+
+Two caveats worth knowing:
+
+- Like the finance curtain, this governs what the module will do when asked. A player determined to drive Foundry's document API from the console is not stopped by it.
+- Direct writes are no longer serialised through one GM client, so two people editing the same unit in the same second can have one edit overwrite the other. In practice this is a notebook being filled in, not a contended database.
+
 ### Army Structure
 
 A collapsible hierarchy — **Army → Host → Company → Cohort → Squad** — that anyone at the table can edit:
@@ -128,7 +150,7 @@ A collapsible hierarchy — **Army → Host → Company → Cohort → Squad** �
 
 **Generate Army** builds the whole hierarchy in one click from the configured counts, naming units by position (1st Squad, 2nd Squad, …). It keeps the army's own name and notes and replaces the structure beneath.
 
-Player edits are relayed through the GM's client, so a GM must be connected for changes to save.
+Player edits are relayed through the GM's client, so a GM must be connected for changes to save — or turn on *let players save changes without a GM online* and they will not need one.
 
 ## Opening the tracker
 
@@ -207,6 +229,7 @@ Anything that's a list sits behind the **Configure Army Tracker** button in that
 - **Ranks & daily pay** — add, rename, reorder and delete ranks, each with its own default daily wage. The defaults are Soldier / Corporal / Sergeant / Lieutenant / Captain at 1 / 2 / 3 / 5 / 8, but nothing is fixed. Deleting a rank someone currently holds warns you first, and those members show as holding a removed rank rather than being silently re-banded.
 - **Default deductions** — the lines each new recruit starts with (Food and Camp maintenance by default). Existing members are untouched when you change these.
 - **Officers** — the include-officers toggle and the default title for each level.
+- **Players & sharing** — whether players can save changes with no GM connected, which also lets them keep the roster as a notebook. See **Sharing & Notes** above.
 - **War chest** — whether the army treasury is tracked at all, whether Advance Day draws wages and upkeep from it, the per-soldier and per-officer upkeep rates (with the PF2e cost-of-living figures they came from spelled out), and who besides the GM may see the books.
 - **Army generation** — how many hosts per army, companies per host, cohorts per company, squads per cohort and soldiers per squad, with a live projected total strength.
 
@@ -215,6 +238,6 @@ Anything that's a list sits behind the **Configure Army Tracker** button in that
 - All data is stored in a world setting, so it lives with your world and is included in world backups.
 - Granting a loan pays the coin straight into the character's inventory on PF2e and records the debt against the member. The coin is handed over *before* the debt is written, so a failed payout never leaves someone owing money they never received. Without a linked PF2e inventory the dialog says so up front and the loan only records the debt — hand over the coin on the sheet yourself.
 - The roster is GM-editable only, except for vault deposits and withdrawals, which players may perform for their own characters. The Army Structure tab is editable by everyone.
-- Player actions are relayed through the GM's client, so a GM must be connected.
+- Player actions are relayed through the GM's client, so a GM must be connected — unless *let players save changes without a GM online* is enabled, in which case they save their own work directly. See **Sharing & Notes**.
 - The war chest starts empty. Before the first Advance Day, either seed it with **Set balance** or turn *draw wages and upkeep from the war chest* off in the config — otherwise the army goes into arrears immediately, which is accurate but probably not what you meant.
 - Undo keeps a single step. It covers the realistic mistake — a mistyped fast-forward, a bonus at the wrong rate — rather than pretending to be a history you can walk backwards through.

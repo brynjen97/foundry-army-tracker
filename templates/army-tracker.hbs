@@ -54,7 +54,7 @@
             <th class="at-col-num">{{localize "ARMY.Col.net"}}</th>
             <th class="at-col-num">{{localize "ARMY.Col.debt"}}</th>
             <th class="at-col-num">{{localize "ARMY.Col.vault"}}</th>
-            {{#if isGM}}<th class="at-col-actions"></th>{{/if}}
+            {{#if canEditRoster}}<th class="at-col-actions"></th>{{/if}}
           </tr>
         </thead>
         <tbody>
@@ -93,13 +93,17 @@
                      data-path="{{path}}.vault" data-dtype="Number"
                      {{#unless @root.isGM}}disabled{{/unless}}>
             </td>
-            {{#if @root.isGM}}
+            {{#if @root.canEditRoster}}
             <td class="at-col-actions">
+              {{#if canRemove}}
               <button type="button" class="at-icon-btn danger" data-action="removeMember"
                       data-index="{{index}}" data-name="{{name}}"
                       data-tooltip="{{localize "ARMY.RemoveMember"}}">
                 <i class="fa-solid fa-trash"></i>
               </button>
+              {{else}}
+              <i class="fa-solid fa-lock at-locked" data-tooltip="{{localize "ARMY.RemoveLocked"}}"></i>
+              {{/if}}
             </td>
             {{/if}}
           </tr>
@@ -107,6 +111,20 @@
           <tr class="at-detail-row">
             <td colspan="{{@root.colspan}}">
               <div class="at-detail">
+                <div class="at-panel">
+                  <h4><i class="fa-solid fa-pen-to-square"></i> {{localize "ARMY.Notes.title"}}</h4>
+                  {{#if nameEditable}}
+                  <div class="at-line at-note-name">
+                    <span>{{localize "ARMY.Notes.name"}}</span>
+                    <input type="text" value="{{name}}" data-path="{{path}}.name"
+                           placeholder="{{localize "ARMY.AddDialog.namePh"}}">
+                  </div>
+                  {{/if}}
+                  <textarea class="at-note-body" rows="4" data-path="{{path}}.notes"
+                            placeholder="{{localize "ARMY.Notes.placeholder"}}"
+                            {{#unless @root.canEditRoster}}readonly{{/unless}}>{{notes}}</textarea>
+                </div>
+
                 <div class="at-panel">
                   <h4><i class="fa-solid fa-utensils"></i> {{localize "ARMY.Deductions"}}</h4>
                   {{#if deductions.length}}
@@ -158,7 +176,8 @@
                   <div class="at-line"><span>{{localize "ARMY.MaxLoan" months=@root.loanMonths}}</span><span>{{pay.maxLoanF}} {{@root.currency}}</span></div>
                   <div class="at-line at-unit-assign">
                     <span>{{localize "ARMY.Unit.posting"}}</span>
-                    <select data-path="{{path}}.unitId" data-dtype="String" {{#unless @root.isGM}}disabled{{/unless}}
+                    <select data-path="{{path}}.unitId" data-dtype="String"
+                            {{#unless @root.canEditRoster}}disabled{{/unless}}
                             data-tooltip="{{localize "ARMY.Unit.postingTooltip"}}">
                       {{selectOptions @root.unitOptions selected=unitId}}
                     </select>
@@ -223,14 +242,14 @@
             <td class="at-num">{{totals.netF}}</td>
             <td class="at-num">{{totals.debtF}}</td>
             <td class="at-num">{{totals.vaultF}}</td>
-            {{#if isGM}}<td></td>{{/if}}
+            {{#if canEditRoster}}<td></td>{{/if}}
           </tr>
         </tfoot>
       </table>
       {{else}}
       <p class="at-hint">{{localize "ARMY.RosterEmpty"}}</p>
       {{/if}}
-      {{#if isGM}}
+      {{#if canEditRoster}}
       <button type="button" class="at-add" data-action="addMember">
         <i class="fa-solid fa-user-plus"></i> {{localize "ARMY.AddMember"}}
       </button>

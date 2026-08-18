@@ -112,6 +112,19 @@
     </fieldset>
 
     <fieldset class="at-config-section">
+      <legend><i class="fa-solid fa-users-gear"></i> {{localize "ARMY.Config.sharingTitle"}}</legend>
+      <label class="at-check">
+        <input type="checkbox" data-field="playerEditing" {{#if playerEditing}}checked{{/if}}>
+        <span>{{localize "ARMY.Config.playerEditing"}}</span>
+      </label>
+      <p class="at-hint">{{localize "ARMY.Config.playerEditingHint"}}</p>
+      {{#if playerEditing}}
+      <p class="at-hint">{{localize "ARMY.Config.playerEditingScope"}}</p>
+      <p class="at-hint">{{localize "ARMY.Config.playerEditingWhere"}}</p>
+      {{/if}}
+    </fieldset>
+
+    <fieldset class="at-config-section">
       <legend><i class="fa-solid fa-scale-balanced"></i> {{localize "ARMY.Config.treasuryTitle"}}</legend>
       <label class="at-check">
         <input type="checkbox" data-field="treasuryEnabled" {{#if treasuryEnabled}}checked{{/if}}>

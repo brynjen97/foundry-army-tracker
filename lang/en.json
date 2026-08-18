@@ -280,7 +280,12 @@
       "upkeepExample": "At this rate, {soldiers} soldiers cost {cost} a day.",
       "financeVisibility": "Who can see the war chest",
       "financeMinRank": "Minimum rank",
-      "financeHint": "Any roster member can also be let in or shut out individually, from the Finances panel on their row. This hides the numbers at the table; it is not a security boundary, since a determined player can read the world data directly."
+      "financeHint": "Any roster member can also be let in or shut out individually, from the Finances panel on their row. This hides the numbers at the table; it is not a security boundary, since a determined player can read the world data directly.",
+      "sharingTitle": "Players & sharing",
+      "playerEditing": "Let players save changes without a GM online",
+      "playerEditingHint": "Foundry only lets a GM write world settings, so by default every player edit is relayed to a connected GM and nothing saves when none is. Turning this on moves the tracker's data into a shared journal entry that all players own, so they can write it themselves — useful when the tracker doubles as the table's notebook.",
+      "playerEditingScope": "Players may then add people to the roster, name them, write notes on them and post them to a unit, on top of the army structure they could always edit. Rank, wages, deductions, debt, vaults, the war chest and the ledger stay with the GM, and a roster entry can only be deleted while no money is attached to it.",
+      "playerEditingWhere": "The data moves to a journal entry named “Army Tracker — shared data”. Leave it in place; turning this off copies everything back into the world setting."
     },
     "ExpandAll": "Expand all",
     "CollapseAll": "Collapse all",
@@ -487,6 +492,16 @@
         "equal": "Equal shares",
         "rank": "By rank — a share for each gold of daily wage"
       }
-    }
+    },
+    "Store": {
+      "docName": "Army Tracker — shared data (do not delete)",
+      "createFailed": "Could not create the shared data journal. Player editing will keep relaying through the GM."
+    },
+    "Notes": {
+      "title": "Notes",
+      "name": "Name",
+      "placeholder": "Who they are, where you met them, what they owe you a favour for…"
+    },
+    "RemoveLocked": "Only the GM can remove someone with money in the vault or debt outstanding."
   }
 }

@@ -1,6 +1,7 @@
 import { COUNT_SETTINGS, LEVELS, MODULE_ID } from "./constants.mjs";
 import { round2, fmt } from "./util.mjs";
 import { COST_OF_LIVING } from "./treasure.mjs";
+import { syncStore } from "./store.mjs";
 import { highestRankingMember, memberName } from "./data.mjs";
 import {
   builtinDeductions,
@@ -66,6 +67,7 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
       includeOfficers: game.settings.get(MODULE_ID, "includeOfficers") !== false,
       autoPopulate: game.settings.get(MODULE_ID, "autoPopulate") === true,
       requisitionApproval: game.settings.get(MODULE_ID, "requisitionApproval") === true,
+      playerEditing: game.settings.get(MODULE_ID, "playerEditing") === true,
       treasuryEnabled: game.settings.get(MODULE_ID, "treasuryEnabled") !== false,
       chargeUpkeep: game.settings.get(MODULE_ID, "chargeUpkeep") !== false,
       upkeepPerSoldier: round2(game.settings.get(MODULE_ID, "upkeepPerSoldier")),
@@ -90,6 +92,7 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
       })),
       autoPopulate: d.autoPopulate,
       requisitionApproval: d.requisitionApproval,
+      playerEditing: d.playerEditing,
       treasuryEnabled: d.treasuryEnabled,
       chargeUpkeep: d.chargeUpkeep,
       upkeepPerSoldier: d.upkeepPerSoldier,
@@ -161,6 +164,10 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
         break;
       case "requisitionApproval":
         d.requisitionApproval = el.checked;
+        break;
+      case "playerEditing":
+        d.playerEditing = el.checked;
+        this.render();
         break;
       case "treasuryEnabled":
         d.treasuryEnabled = el.checked;
@@ -281,6 +288,10 @@ export class ArmyConfigApp extends HandlebarsApplicationMixin(ApplicationV2) {
     await game.settings.set(MODULE_ID, "includeOfficers", d.includeOfficers);
     await game.settings.set(MODULE_ID, "autoPopulate", d.autoPopulate);
     await game.settings.set(MODULE_ID, "requisitionApproval", d.requisitionApproval);
+    await game.settings.set(MODULE_ID, "playerEditing", d.playerEditing);
+    // Create the shared journal, or fold it back into the setting. Done after
+    // the toggle is saved so syncStore reads the value the GM just chose.
+    await syncStore();
     await game.settings.set(MODULE_ID, "treasuryEnabled", d.treasuryEnabled);
     await game.settings.set(MODULE_ID, "chargeUpkeep", d.chargeUpkeep);
     await game.settings.set(MODULE_ID, "upkeepPerSoldier", Math.max(0, round2(d.upkeepPerSoldier)));

@@ -936,3 +936,22 @@
 .army-tracker .at-ledger-row:hover {
   background: var(--at-row-hover);
 }
+
+/* Roster entries double as notes when player editing is on. */
+.army-tracker .at-note-name input {
+  flex: 1;
+  margin-left: 0.5rem;
+}
+
+.army-tracker .at-note-body {
+  width: 100%;
+  margin-top: 0.4rem;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.9em;
+}
+
+.army-tracker .at-locked {
+  opacity: 0.35;
+  font-size: 0.85em;
+}

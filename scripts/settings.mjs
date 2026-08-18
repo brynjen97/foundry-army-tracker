@@ -37,6 +37,9 @@ export function registerSettings() {
     ["includeOfficers", Boolean, true],
     ["autoPopulate", Boolean, false],
     ["requisitionApproval", Boolean, true],
+    // Moves the data into a shared journal entry players own, so the roster
+    // and structure can be kept as notes with no GM connected.
+    ["playerEditing", Boolean, false],
     // Army treasury: whether it is tracked at all, whether Advance Day draws
     // from it, and who besides the GM is allowed to look at it.
     ["treasuryEnabled", Boolean, true],

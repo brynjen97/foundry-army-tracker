@@ -23,6 +23,7 @@ import {
 } from "./data.mjs";
 import { getCounts, getDeductionTemplate, getOfficerTitles, getRanks, includeOfficers } from "./settings.mjs";
 import { listUnits } from "./structure.mjs";
+import { playerRosterEditing } from "./store.mjs";
 import { ENTRY_TYPES, undoLabel, undoLast } from "./ledger.mjs";
 import {
   armyUpkeep,
@@ -171,6 +172,10 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
 
+    // With player editing on, the roster doubles as a shared notebook: anyone
+    // may add people and annotate them, while pay and balances stay with the GM.
+    const canEditRoster = isGM || playerRosterEditing();
+
     const roster = data.roster.map((member, index) => {
       const actor = member.actorId ? game.actors.get(member.actorId) : null;
       const pay = computePay(member);
@@ -215,6 +220,14 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         // matches no option and so shows as unassigned, rather than pointing
         // at something that is no longer there.
         unitId: member.unitId ?? "",
+        notes: member.notes ?? "",
+        // Players may tidy away a note, but not an account: an entry with any
+        // money attached to it stays until the GM removes it.
+        canRemove: isGM || (canEditRoster
+          && !round2(member.debt ?? 0) && !round2(member.vault ?? 0)),
+        // The name comes from the linked actor when there is one, so there is
+        // nothing to type in that case.
+        nameEditable: canEditRoster && !actor,
         financeAccess: member.financeAccess ?? "inherit",
         financeIcon: FINANCE_ICONS[member.financeAccess ?? "inherit"],
         financeTip: game.i18n.localize(`ARMY.Treasury.access.${member.financeAccess ?? "inherit"}`),
@@ -264,6 +277,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       loanMonths: cfg.loanMonths,
       treasuryOn,
       showFinances,
+      canEditRoster,
       treasury: {
         balance,
         balanceF: fmt(balance),
@@ -832,7 +846,7 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static async _onAddMember() {
-    if (!game.user.isGM) return;
+    if (!game.user.isGM && !playerRosterEditing()) return;
     const data = getArmyData();
     const esc = escapeHTML;
     const taken = new Set(data.roster.map((m) => m.actorId).filter(Boolean));
@@ -882,14 +896,15 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
         amount: d.amount
       })),
       debt: 0,
-      vault: 0
+      vault: 0,
+      notes: ""
     };
     this.#expandedRows.add(member.id);
     await applyOps([{ action: "push", path: "roster", value: member }]);
   }
 
   static async _onRemoveMember(event, target) {
-    if (!game.user.isGM) return;
+    if (!game.user.isGM && !playerRosterEditing()) return;
     const index = Number(target.dataset.index);
     const confirmed = await DialogV2.confirm({
       window: { title: game.i18n.localize("ARMY.RemoveMember") },

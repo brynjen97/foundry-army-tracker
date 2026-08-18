@@ -1,7 +1,8 @@
-import { MODULE_ID, SETTING_DATA } from "./constants.mjs";
+import { MODULE_ID } from "./constants.mjs";
 import { round2, fmt, escapeHTML, docClass } from "./util.mjs";
 import { addItemToActor, giveToActor, itemPriceGold, supportsInventoryTransfer, takeFromActor } from "./currency.mjs";
 import { record, snapshot } from "./ledger.mjs";
+import { canWriteDirectly, playerRosterEditing, readStore, writeStore } from "./store.mjs";
 import { unitPath } from "./structure.mjs";
 import {
   applyToTreasury,
@@ -40,7 +41,7 @@ export const DEFAULT_DATA = () => ({
 /* -------------------------------------------- */
 
 export function getArmyData() {
-  const stored = foundry.utils.deepClone(game.settings.get(MODULE_ID, SETTING_DATA) ?? {});
+  const stored = foundry.utils.deepClone(readStore());
   const data = foundry.utils.mergeObject(DEFAULT_DATA(), stored, { inplace: false });
   data.roster ??= [];
   data.structure ??= {};
@@ -131,8 +132,10 @@ export {
  * @returns {Promise<boolean>} whether the update was applied or relayed
  */
 export async function applyOps(ops) {
-  if (game.user.isGM) {
-    await applyOpsAsGM(ops, game.user.id);
+  // With player editing on, the data lives in a document the player owns, so
+  // they write it themselves and no GM need be connected at all.
+  if (canWriteDirectly()) {
+    await applyOpsFor(ops, game.user.id);
     return true;
   }
   if (!game.users.activeGM) {
@@ -143,7 +146,37 @@ export async function applyOps(ops) {
   return true;
 }
 
-async function applyOpsAsGM(ops, userId) {
+/**
+ * What a player is allowed to change.
+ *
+ * The army structure has always been theirs to edit. With player editing on
+ * they may also keep the roster as a notebook — adding people, naming them,
+ * posting them to a unit — while everything the economy depends on (rank,
+ * wages, deductions, debt, vault, the war chest, the ledger, the day count)
+ * stays with the GM. A roster entry can be deleted only while no money is
+ * attached to it, so a mistyped note can be tidied away but an account
+ * cannot be wiped.
+ *
+ * Like the finance curtain, this governs what the module will do on request;
+ * it is not a defence against someone driving the document API by hand.
+ */
+function playerMayWrite(op, data) {
+  const path = String(op.path ?? "");
+  if (path === "structure" || path.startsWith("structure.")) return true;
+  if (!playerRosterEditing()) return false;
+
+  if (path === "roster") {
+    if (op.action === "push") return true;
+    if (op.action === "remove") {
+      const member = data.roster?.[op.index];
+      return !!member && !round2(member.debt ?? 0) && !round2(member.vault ?? 0);
+    }
+    return false;
+  }
+  return /^roster\.\d+\.(name|notes|unitId|actorId)$/.test(path);
+}
+
+async function applyOpsFor(ops, userId) {
   const isGM = game.users.get(userId)?.isGM ?? false;
   const data = getArmyData();
   let changed = false;
@@ -167,7 +200,7 @@ async function applyOpsAsGM(ops, userId) {
     }
     const path = String(op.path ?? "");
     if (!path || path.includes("-=")) continue;
-    if (!isGM && !path.startsWith("structure.") && path !== "structure") continue;
+    if (!isGM && !playerMayWrite(op, data)) continue;
     try {
       switch (op.action) {
         case "set":
@@ -195,7 +228,7 @@ async function applyOpsAsGM(ops, userId) {
       console.error(`${MODULE_ID} | Failed to apply op`, op, err);
     }
   }
-  if (changed) await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  if (changed) await writeStore(data);
 }
 
 /** Socket handler: only the active GM applies relayed player updates. */
@@ -203,7 +236,7 @@ export function onSocketMessage(message) {
   switch (message?.type) {
     case "ops":
       if (!game.user.isGM || game.user !== game.users.activeGM) return;
-      applyOpsAsGM(message.ops ?? [], message.userId);
+      applyOpsFor(message.ops ?? [], message.userId);
       return;
     case "transfer":
       if (!game.user.isGM || game.user !== game.users.activeGM) return;
@@ -302,7 +335,7 @@ export async function performTransfer({ memberId, direction, amount, userId }) {
     balance: member.vault,
     note: linked ? "" : game.i18n.localize("ARMY.Ledger.ledgerOnly")
   });
-  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  await writeStore(data);
 
   const cfg = getConfig();
   await docClass("ChatMessage").create({
@@ -492,7 +525,7 @@ export async function performRequisition({ memberId, uuid, quantity, userId }) {
       note: `${item.name}${qty > 1 ? ` ×${qty}` : ""}`
     });
   }
-  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  await writeStore(data);
 
   await docClass("ChatMessage").create({
     content: `
@@ -798,7 +831,7 @@ export async function advanceDay(days = 1) {
     }
   }
 
-  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  await writeStore(data);
 
   const esc = escapeHTML;
   const signed = (v) => (v > 0 ? `+${fmt(v)}` : fmt(v));
@@ -958,7 +991,7 @@ export async function grantBonus({ mode, amount = 0, clearDebtFirst = false }) {
     });
   }
 
-  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  await writeStore(data);
 
   const esc = escapeHTML;
   const loc = (k) => game.i18n.localize(k);
@@ -1069,7 +1102,7 @@ export async function distributeShares({ amount, mode = "equal", clearDebtFirst 
     amount: -paidOut,
     note: note || game.i18n.localize("ARMY.Shares.title")
   });
-  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  await writeStore(data);
 
   const esc = escapeHTML;
   const loc = (k) => game.i18n.localize(k);

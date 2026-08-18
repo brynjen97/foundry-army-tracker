@@ -1,5 +1,6 @@
-import { MODULE_ID, SETTING_DATA } from "./constants.mjs";
+import { MODULE_ID } from "./constants.mjs";
 import { round2 } from "./util.mjs";
+import { writeStore } from "./store.mjs";
 
 /**
  * The campaign's account book.
@@ -137,6 +138,6 @@ export async function undoLast(data) {
     note: game.i18n.format("ARMY.Ledger.undoNote", { label: snap.label, count: removed })
   });
 
-  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  await writeStore(data);
   return { label: snap.label, removed };
 }

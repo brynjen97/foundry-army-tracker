@@ -1,8 +1,9 @@
-import { MODULE_ID, SETTING_DATA } from "./constants.mjs";
+import { MODULE_ID } from "./constants.mjs";
 import { round2, fmt, escapeHTML, docClass } from "./util.mjs";
 import { getConfig, getRanks, includeOfficers } from "./settings.mjs";
 import { officerCount, unitStrength } from "./structure.mjs";
 import { record, snapshot } from "./ledger.mjs";
+import { readStore, writeStore } from "./store.mjs";
 import { UPKEEP_DEFAULTS } from "./treasure.mjs";
 
 /**
@@ -114,7 +115,7 @@ function ownedBy(member, user) {
 
 /** Read the stored blob directly — avoids importing data.mjs and closing a cycle. */
 function getArmyDataLite() {
-  return game.settings.get(MODULE_ID, SETTING_DATA) ?? { roster: [] };
+  return readStore();
 }
 
 /**
@@ -161,11 +162,11 @@ export function applyToTreasury(data, { amount, type, note, memberName = null, m
 /** GM-only: record a haul, a grant, or a correction against the war chest. */
 export async function creditTreasury({ amount, type = "loot", note = "", announce = true }) {
   if (!game.user.isGM) return null;
-  const data = foundry.utils.deepClone(game.settings.get(MODULE_ID, SETTING_DATA) ?? {});
+  const data = foundry.utils.deepClone(readStore());
   data.roster ??= [];
   snapshot(data, game.i18n.localize(`ARMY.Ledger.type.${type}`));
   const balance = applyToTreasury(data, { amount, type, note });
-  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  await writeStore(data);
   if (announce) await announceTreasury({ amount, note, balance, type });
   return balance;
 }
@@ -173,14 +174,14 @@ export async function creditTreasury({ amount, type = "loot", note = "", announc
 /** GM-only: set the war chest to an exact figure, recording the difference. */
 export async function setTreasuryBalance(target, note = "") {
   if (!game.user.isGM) return null;
-  const data = foundry.utils.deepClone(game.settings.get(MODULE_ID, SETTING_DATA) ?? {});
+  const data = foundry.utils.deepClone(readStore());
   data.roster ??= [];
   const current = getTreasury(data).balance;
   const delta = round2(round2(target) - current);
   if (!delta) return current;
   snapshot(data, game.i18n.localize("ARMY.Ledger.type.adjust"));
   const balance = applyToTreasury(data, { amount: delta, type: "adjust", note });
-  await game.settings.set(MODULE_ID, SETTING_DATA, data);
+  await writeStore(data);
   return balance;
 }
 
