@@ -22,7 +22,7 @@ import {
 } from "./data.mjs";
 import { getCounts, getDeductionTemplate, getOfficerTitles, getRanks, includeOfficers } from "./settings.mjs";
 import { ArmyConfigApp } from "./config-app.mjs";
-import { carriedGold, coinLabel, itemPriceGold } from "./currency.mjs";
+import { carriedGold, coinLabel, giveToActor, itemPriceGold, supportsInventoryTransfer } from "./currency.mjs";
 import { MAX_ITEM_LEVEL, openArmyShop, shopAvailable } from "./shop.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
@@ -770,10 +770,15 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
 
+    const actor = member.actorId ? game.actors.get(member.actorId) : null;
+    const linked = supportsInventoryTransfer(actor);
+    const note = linked ? "" : `<p class="notification warning">${game.i18n.localize("ARMY.LoanLedgerOnly")}</p>`;
+
     const result = await DialogV2.prompt({
       window: { title: game.i18n.localize("ARMY.GrantLoan") },
       content: `
         <p>${game.i18n.format("ARMY.LoanPrompt", { available: fmt(available), currency: cfg.currency })}</p>
+        ${note}
         <div class="form-group">
           <input type="number" name="amount" step="any" min="0" max="${available}" value="${available}" autofocus>
         </div>`,
@@ -787,8 +792,17 @@ export class ArmyTrackerApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!result || Number.isNaN(result) || result <= 0) return;
 
     const amount = Math.min(round2(result), available);
+
+    // Hand over the coin before recording the debt, so a failed payout cannot
+    // leave a character owing money they never received. Same order as a
+    // requisition, which is a loan spent at the point of purchase.
+    if (linked && !(await giveToActor(actor, amount))) {
+      ui.notifications.error(game.i18n.localize("ARMY.LoanFailed"));
+      return;
+    }
+
     await applyOps([{ action: "set", path: `roster.${index}.debt`, value: round2(debt + amount) }]);
-    ui.notifications.info(game.i18n.format("ARMY.LoanGranted", {
+    ui.notifications.info(game.i18n.format(linked ? "ARMY.LoanGranted" : "ARMY.LoanGrantedLedger", {
       amount: fmt(amount),
       currency: cfg.currency,
       name: target.dataset.name ?? ""

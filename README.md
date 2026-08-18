@@ -16,7 +16,7 @@ A dedicated, resizable window with a table of party members:
 - **Daily wage override** — leave blank to use the rank default (shown greyed out), or type a value to override it for that member.
 - **Daily deductions** — expand a member's row to itemise daily costs (food, camp maintenance, etc.), each with its own label and amount. Two sensible defaults are pre-filled for new members.
 - **Salary breakdown** — the expanded row shows net daily pay plus calculated weekly, monthly and yearly salaries (days per week/month/year are configurable).
-- **Debt & loans** — track each member's debt. Loans are capped at six months of base salary by default (configurable). The GM can grant loans and repay debt from the vault with one click.
+- **Debt & loans** — track each member's debt. Loans are capped at six months of base salary by default (configurable). The GM can grant loans and repay debt from the vault with one click; a granted loan pays the coin into the character's inventory on PF2e.
 - **Camp vault** — each member's money stored in the camp vault, with a running total for the whole party. Players can **deposit and withdraw** their own savings (see below).
 
 ### Deposits & withdrawals
@@ -171,6 +171,6 @@ Anything that's a list sits behind the **Configure Army Tracker** button in that
 ## Notes
 
 - All data is stored in a world setting, so it lives with your world and is included in world backups.
-- Granting a loan increases the member's debt; handing the actual coin to the character is left to the GM. To pay it out for real on PF2e, grant the loan and then use **Withdraw** for the same amount.
+- Granting a loan pays the coin straight into the character's inventory on PF2e and records the debt against the member. The coin is handed over *before* the debt is written, so a failed payout never leaves someone owing money they never received. Without a linked PF2e inventory the dialog says so up front and the loan only records the debt — hand over the coin on the sheet yourself.
 - The roster is GM-editable only, except for vault deposits and withdrawals, which players may perform for their own characters. The Army Structure tab is editable by everyone.
 - Player actions are relayed through the GM's client, so a GM must be connected.
