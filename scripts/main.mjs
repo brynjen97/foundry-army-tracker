@@ -1,5 +1,6 @@
 import { MODULE_ID } from "./constants.mjs";
 import { getArmyData, registerSettings, seedDefaults, onSocketMessage } from "./data.mjs";
+import { isStoreDoc, syncStore } from "./store.mjs";
 import { ArmyTrackerApp } from "./app.mjs";
 import { ArmyConfigApp } from "./config-app.mjs";
 
@@ -47,6 +48,9 @@ Hooks.once("ready", async () => {
   // Writes the built-in ranks and deductions into settings once, so the config
   // menu opens with something to edit instead of an empty form.
   await seedDefaults();
+  // Create or repair the shared data journal if player editing is on. Needs a
+  // GM, so it happens on the first GM login after the toggle is flipped.
+  await syncStore();
 });
 
 /** The hook's second argument is jQuery on v12 and an HTMLElement from v13 on. */
@@ -109,6 +113,11 @@ Hooks.on("renderSettings", (app, html) => {
 Hooks.on("updateSetting", (setting) => {
   if (!setting.key?.startsWith(`${MODULE_ID}.`)) return;
   ArmyTrackerApp.instance?.render();
+});
+
+/** With player editing on the data lives in a journal entry, so watch that too. */
+Hooks.on("updateJournalEntry", (doc) => {
+  if (isStoreDoc(doc)) ArmyTrackerApp.instance?.render();
 });
 
 /** Keep the "carried by character" figure current as coin moves on linked sheets. */

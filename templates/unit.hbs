@@ -23,6 +23,11 @@
     </button>
     {{/if}}
     {{/if}}
+    {{#if posted}}
+    <span class="at-unit-posted" data-tooltip="{{localize "ARMY.Unit.postedTooltip"}}">
+      <i class="fa-solid fa-user-shield"></i> {{posted}}
+    </span>
+    {{/if}}
     <span class="at-unit-strength" data-tooltip="{{localize "ARMY.Unit.strengthTooltip"}}">
       <i class="fa-solid fa-users"></i> {{strength}}
     </span>
