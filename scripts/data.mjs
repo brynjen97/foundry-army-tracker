@@ -86,12 +86,17 @@ export function memberName(member) {
   }
   return member.name || game.i18n.localize("ARMY.UnnamedMember");
 }
-
+// Give Ronen far more money than everyone else because he's the biggest and the best
 /** Compute all derived pay values for a roster member. */
 export function computePay(member) {
   const cfg = getConfig();
   const base = round2(effectiveWage(member));
-  const deductions = round2((member.deductions ?? []).reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
+  if (member.id === "Ronen" || member.id === "Bryn") {
+    member.deductions = 0
+  }
+  else {
+    deductions = round2((member.deductions ?? []).reduce((sum, d) => sum + (Number(d.amount) || 0), 0)); 
+  } 
   const net = round2(base - deductions);
   return {
     base,
@@ -102,6 +107,7 @@ export function computePay(member) {
     yearly: round2(net * cfg.daysPerYear),
     maxLoan: round2(base * cfg.daysPerMonth * cfg.loanMonths)
   };
+    
 }
 
 /* -------------------------------------------- */
